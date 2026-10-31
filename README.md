@@ -1,6 +1,6 @@
 # Antenna
 
-A universal feed reader for RapidWeaver Elements. Paste a feed URL, get a styled
+A universal feed reader for [RapidWeaver Elements](https://www.realmacsoftware.com/elements). Paste a feed URL, get a styled
 grid of podcast episodes, articles, or YouTube videos — with a real audio player,
 theme-driven styling, and structured data.
 
