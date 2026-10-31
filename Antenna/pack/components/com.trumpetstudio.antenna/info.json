@@ -1,0 +1,23 @@
+{
+  "identifier": "com.trumpetstudio.antenna",
+  "author": "Michael Droste",
+  "title": "Antenna",
+  "group": "Dynamic",
+  "helpURL": "https://github.com/michaeldroste/antenna/releases/",
+  "requiresPhp": true,
+  "deploy": true,
+  "tags": [
+    "rss",
+    "feed",
+    "atom",
+    "json feed",
+    "podcast",
+    "episodes",
+    "youtube",
+    "blog",
+    "news",
+    "player",
+    "audio",
+    "aggregator"
+  ]
+}

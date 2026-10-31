@@ -1,0 +1,1700 @@
+<!--
+  Antenna — universal feed reader. MIT License.
+
+  Feeds are fetched by PHP at request time: the Elements hooks sandbox has no
+  network access, so a build-time fetch is impossible. The hosting page must be
+  published with a .php filename.
+
+  Card padding, corner radius, border width, shadow and fonts come from Theme
+  controls, never from hardcoded Tailwind classes, so they follow Theme Studio
+  and stay correct under both v3 and v4 themes. Since build 18 five sizes do
+  not: the two gaps, the list artwork width, the play-button size and the
+  progress-bar height are sliders on the spacing scale's numbers, emitting an
+  exact calc() length that compiles the same on v3 and v4. The template prints
+  those five from hooks.js rather than from the controls, because a value saved
+  before build 18 reads as zero there; the hook passes every real value through
+  unchanged and replaces only that one.
+
+  Tailwind JIT safelist (classes composed inside PHP strings at runtime):
+  grid-cols-1 grid-cols-2 grid-cols-3 grid-cols-4 flex flex-col flex-row
+  flex-row-reverse items-start items-center justify-center divide-y min-w-[6rem]
+  line-clamp-1 line-clamp-2 line-clamp-3 line-clamp-4 line-clamp-5 line-clamp-6
+  w-full w-3/4 w-2/3 w-1/2 w-2/5 mx-auto
+  inline-flex justify-center p-0.5
+  line-clamp-none aspect-square aspect-video aspect-auto aspect-[4/3] aspect-[3/2]
+  aspect-[21/9] object-cover object-contain object-fill object-center object-top
+  object-bottom object-left object-right object-left-top object-right-top
+  object-left-bottom object-right-bottom pointer-events-none absolute inset-0
+  relative overflow-hidden tabular-nums
+-->
+
+@if(emitFeedLink)
+@portal(headEnd)
+<link rel="alternate" type="application/rss+xml" href="{{feedUrl}}" />
+@endportal
+@endif
+
+@if(showImage)
+@portal(bodyEnd, id: "com.trumpetstudio.antenna.artwork", includeOnce: true)
+<script>
+/* Hides an artwork box whose image fails to load. Delegated from the document in
+   the capture phase because error events from <img> do not bubble, and emitted
+   once per page instead of as an onerror attribute on every card: a CSP that
+   allows scripts by nonce or hash still blocks event-handler attributes. */
+(function () {
+    if (window.antennaArtworkGuard) { return; }
+    window.antennaArtworkGuard = true;
+    document.addEventListener('error', function (e) {
+        var img = e.target;
+        if (!img || img.tagName !== 'IMG' || !img.closest) { return; }
+        var box = img.closest('.antenna-art');
+        if (box) { box.style.display = 'none'; }
+    }, true);
+})();
+</script>
+@endportal
+@endif
+
+@if(isEdit)
+
+<!-- Edit canvas: PHP cannot run here, so render representative sample items -->
+<div class="antenna-preview">
+  @if(!hasFeedUrl)
+  <p class="mb-4 rounded-lg border border-dashed border-surface-300 bg-surface-50 p-4 text-sm text-surface-600 dark:border-surface-600 dark:bg-surface-900 dark:text-surface-300">
+    <strong>Antenna</strong> — add a Feed URL in the Inspector. Publish the page with a
+    <code>.php</code> filename for the feed to load.
+  </p>
+  @endif
+
+  <!-- Editor chrome, so literal colours: a theme ramp has no guaranteed
+       direction, and this has to stay readable on every theme. -->
+  @if(legacySizesNotice)
+  <div class="mb-4 rounded-lg border border-[#d97706] bg-[#fffbeb] p-4 text-sm text-[#78350f]" role="note">
+    <strong>Antenna — five sizes need setting again.</strong> This Antenna was placed
+    before build 18, and five settings were saved in a form the current controls
+    cannot read. Until you set each one again it shows its default, here and on the
+    published page. <strong>Set Layout → Gap and Card → Inner Gap first</strong>, even
+    though they look right: once the other three are set, this note can no longer
+    tell an old gap from a gap of 0 you chose, so both gaps drop to 0 and the note
+    goes away. Then set Player → Button Size, Player → Progress Bar Height and
+    Artwork → Width in List Layout. Setting all five restores the exact sizes you
+    choose. This note appears in the editor only.
+  </div>
+  @endif
+
+  <div class="@if(layoutIsGrid)grid {{columns}}@else flex flex-col@endif {{gridGapClass}}">
+    @each(item in placeholders)
+    <article class="antenna-card group relative overflow-hidden {{cardPadding}} {{cardRadius}} @if(showCardBorder){{cardBorderWidth}} {{cardBorderStyle}}@else border-0@endif {{cardShadow}} {{textAlign}} @if(presetIsCustom){{cardBg}} {{cardBorderColor}}@else{{presetCard}}@endif">
+      <div class="@if(layoutIsList)flex items-start@else flex flex-col@endif {{cardGapClass}}">
+        @if(placeholderShowsImage)
+        <div class="antenna-art relative overflow-hidden @if(layoutIsList){{listImageWidthClass}} shrink-0@else{{imageWidth}} mx-auto@endif {{imageAspect}} {{imageRadius}} {{imageShadow}} flex items-center justify-center bg-surface-200 text-surface-400 dark:bg-surface-800">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.2" stroke="currentColor" class="h-8 w-8">
+            <path stroke-linecap="round" stroke-linejoin="round" d="m9 9 10.5-3m0 6.553v3.75a2.25 2.25 0 0 1-1.632 2.163l-1.32.377a1.803 1.803 0 1 1-.99-3.467l2.31-.66a2.25 2.25 0 0 0 1.632-2.163Zm0 0V2.25L9 5.25v10.303m0 0v3.75a2.25 2.25 0 0 1-1.632 2.163l-1.32.377a1.803 1.803 0 0 1-.99-3.467l2.31-.66A2.25 2.25 0 0 0 9 15.553Z" />
+          </svg>
+          @if(showImageOverlay)
+          <span class="pointer-events-none absolute inset-0 {{imageOverlay}} {{imageOverlayOpacity}}" aria-hidden="true"></span>
+          @endif
+          @if(showPlayOverlay)
+          <span class="pointer-events-none absolute inset-0 flex items-center justify-center" aria-hidden="true">
+            <span class="inline-flex items-center justify-center rounded-full {{playButtonClass}} @if(presetIsCustom){{accentColor}} {{accentTextColor}}@else{{presetAccent}} {{presetAccentText}}@endif">
+              <svg class="ml-0.5 h-1/2 w-1/2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M8 5.14v13.72c0 .77.83 1.25 1.5.86l11-6.86a1 1 0 0 0 0-1.72l-11-6.86A1 1 0 0 0 8 5.14z" />
+              </svg>
+            </span>
+          </span>
+          @endif
+        </div>
+        @endif
+
+        <div class="min-w-0 flex-1">
+          <div class="mb-1 flex flex-wrap items-center gap-2 {{metaFont}} {{metaSize}} {{metaWeight}} {{metaTracking}} {{metaTransform}} @if(presetIsCustom){{metaColor}}@else{{presetMeta}}@endif">
+            @if(showEpisodeNumber)
+            <span class="rounded-[0.25rem] px-1.5 py-0.5 @if(presetIsCustom){{badgeBg}} {{badgeText}}@else{{presetBadge}}@endif">{{episodePrefix}} {{item.episode}}</span>
+            @endif
+            @if(showDate)
+            <time datetime="{{item.dateIso}}">{{item.date}}</time>
+            @endif
+            @if(showDuration)
+            <span>{{item.duration}}</span>
+            @endif
+          </div>
+
+          @if(showsTitle)
+          <h3 class="mb-1 {{titleClampClass}} {{titleFont}} {{titleSize}} {{titleWeight}} {{titleTracking}} {{titleLeading}} {{titleTransform}} @if(presetIsCustom){{titleColor}}@else{{presetTitle}}@endif">{{item.title}}</h3>
+          @endif
+
+          @if(placeholderShowsDescription)
+          <p class="{{bodyClampClass}} {{bodyFont}} {{bodySize}} {{bodyLeading}} @if(presetIsCustom){{bodyColor}}@else{{presetBody}}@endif">{{item.summary}}</p>
+          @endif
+
+          @if(placeholderShowsPlayer)
+          <div class="mt-3 flex items-center gap-3">
+            <span class="inline-flex shrink-0 items-center justify-center rounded-full {{playButtonClass}} @if(presetIsCustom){{accentColor}} {{accentTextColor}}@else{{presetAccent}} {{presetAccentText}}@endif">
+              <svg class="ml-0.5 h-1/2 w-1/2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M8 5.14v13.72c0 .77.83 1.25 1.5.86l11-6.86a1 1 0 0 0 0-1.72l-11-6.86A1 1 0 0 0 8 5.14z" />
+              </svg>
+            </span>
+            <span class="flex-1 {{trackHeightClass}} {{trackRadius}} @if(presetIsCustom){{trackColor}}@else{{presetTrack}}@endif">
+              <span class="block h-full w-1/3 {{trackRadius}} @if(presetIsCustom){{fillColor}}@else{{presetFill}}@endif"></span>
+            </span>
+          </div>
+          @endif
+        </div>
+      </div>
+    </article>
+    @endeach
+  </div>
+</div>
+
+@else
+
+<!--
+  Published / preview. Everything below runs in PHP.
+
+  The wrapper script element is a guard: if the page is NOT published as .php,
+  the browser treats this block as inert raw text and shows nothing, instead of
+  dumping PHP source onto the page. Output is echoed after the guard closes.
+  Nothing inside may contain a literal closing script tag — build those by
+  concatenation so the HTML parser cannot see one.
+-->
+<script type="text/antenna-guard"><?php
+
+/* Nowdoc, not heredoc: the payload may contain $ and backslashes and must not be
+   interpolated by PHP. Elements substitutes its variables before PHP ever sees
+   this. Never write a literal double-brace pair in a comment anywhere in this
+   file - the Elements lexer parses comments too, and a non-variable between the
+   braces is a hard build error.
+   Assigned to a variable first so it parses on every PHP version, not just 7.3+. */
+$antennaCfgJson = <<<'ANTENNA_CFG'
+{{configJson}}
+ANTENNA_CFG;
+
+$antennaCssJson = <<<'ANTENNA_CSS'
+{
+  "wrapGrid":   "grid {{columns}} {{gridGapClass}}",
+  "wrapFlex":   "flex flex-col {{gridGapClass}}",
+  "divide":     "@if(presetIsCustom){{dividerColor}}@else{{presetDivide}}@endif",
+
+  "cardBox":    "{{cardPadding}} {{cardRadius}} @if(showCardBorder){{cardBorderWidth}} {{cardBorderStyle}}@else border-0@endif {{cardShadow}}",
+  "cardColor":  "@if(presetIsCustom){{cardBg}} {{cardBorderColor}}@else{{presetCard}}@endif",
+  "cardHover":  "{{hoverCardClasses}}",
+  "borderHover":"@if(hoverIsBorder)@if(presetIsCustom){{cardBorderHover}}@else{{presetBorderHover}}@endif@endif",
+  "transition": "@if(hasTransition)transition {{transitionDuration}} {{transitionEasing}}@endif",
+  "cardGap":    "{{cardGapClass}}",
+
+  "align":      "{{textAlign}}",
+  "title":      "{{titleFont}} {{titleSize}} {{titleWeight}} {{titleTracking}} {{titleLeading}} {{titleTransform}} {{titleUnderline}} @if(presetIsCustom){{titleColor}} {{titleColorHover}}@else{{presetTitle}} {{presetTitleHover}}@endif",
+  "titleClamp": "{{titleClampClass}}",
+  "meta":       "{{metaFont}} {{metaSize}} {{metaWeight}} {{metaTracking}} {{metaTransform}} @if(presetIsCustom){{metaColor}}@else{{presetMeta}}@endif",
+  "body":       "{{bodyFont}} {{bodySize}} {{bodyLeading}} @if(presetIsCustom){{bodyColor}}@else{{presetBody}}@endif",
+  "bodyClamp":  "{{bodyClampClass}}",
+  "badge":      "@if(presetIsCustom){{badgeBg}} {{badgeText}}@else{{presetBadge}}@endif",
+
+  "accent":     "@if(presetIsCustom){{accentColor}}@else{{presetAccent}}@endif",
+  "accentText": "@if(presetIsCustom){{accentTextColor}}@else{{presetAccentText}}@endif",
+  "track":      "@if(presetIsCustom){{trackColor}}@else{{presetTrack}}@endif",
+  "fill":       "@if(presetIsCustom){{fillColor}}@else{{presetFill}}@endif",
+  "playBtn":    "{{playButtonClass}}",
+  "trackH":     "{{trackHeightClass}}",
+  "trackRadius":"{{trackRadius}}",
+
+  "imgAspect":  "{{imageAspect}}",
+  "imgFit":     "{{imageFit}}",
+  "imgPos":     "{{imageObjectPosition}}",
+  "imgRadius":  "{{imageRadius}}",
+  "imgShadow":  "{{imageShadow}}",
+  "imgHover":   "{{hoverImageClasses}}",
+  "listImgW":   "{{listImageWidthClass}}",
+  "imgW":       "{{imageWidth}}",
+  "overlay":    "{{imageOverlay}} {{imageOverlayOpacity}}"
+}
+ANTENNA_CSS;
+
+/* The raw block opened below runs to the closing directive just before the final
+   endif, and covers pure PHP with no Elements variables in it - the last
+   substitution is the ANTENNA_CSS block just above. Turning the template lexer
+   off for that region lets PHP and JSON-LD tokens that merely look like template
+   syntax pass through untouched: error-suppressed calls (mkdir, iconv,
+   file_get_contents prefixed with the at-sign) and schema.org keys (type, id,
+   context, graph prefixed with the at-sign). Without it, any brace pair or
+   at-word added to the PHP below is a build error rather than code.
+
+   Two rules when editing: keep new Elements variables ABOVE this line, inside
+   the two nowdocs; and never spell the closing directive's name inside the block
+   - even in a comment it ends the block early. */
+@raw()
+
+/* Everything from here to the return runs INSIDE a closure, and that is a
+   correctness requirement rather than a tidiness one.
+
+   A root template's PHP executes in the page's own global scope, beside whatever
+   the CMS is using to render the page around it. Until build 19 this block wrote
+   61 names into that scope, three of them $item, $items and $i. Put an Antenna
+   anywhere on a CMS Item page and the page's own item would be overwritten by
+   the last feed entry this component happened to parse. CMS Prev Next shipped
+   exactly that bug on 20 Aug 2026 and took out every item page on a live site
+   from every link, whether or not the link came from the component; this file
+   had the same hole open since 1.0 and had simply never been dropped on a page
+   that used one of the names.
+
+   A closure fixes the whole class at once rather than renaming the three that
+   would have bitten first. Nothing inside is visible to the page, and nothing
+   the page holds is visible in here except the two values passed in
+   deliberately.
+
+   call_user_func rather than an immediately-invoked closure literal, for the
+   same reason the nowdocs above are assigned to variables first: it parses on
+   every PHP version rather than 7.0 and later only.
+
+   Do NOT re-indent the body to match. A nowdoc terminator has to sit at column 0
+   on PHP older than 7.3, and indentation here would cost a parse error on
+   exactly the old hosts this pack is careful about. */
+$antennaRendered = call_user_func(function ($antennaCfgJson, $antennaCssJson) {
+
+$antennaCfg = json_decode($antennaCfgJson, true);
+$antennaCss = json_decode($antennaCssJson, true);
+
+$antennaOut = '';
+$antennaWarnings = array();
+$antennaCacheDir = '(not created)';
+
+/* Both payloads are JSON assembled by template interpolation, so a decode failure
+   means a value carried a character that broke the document. Falling back
+   silently made the two worst outcomes invisible: the config case ignores every
+   setting the author chose, and the style case empties every class string and
+   renders the component completely unstyled. Neither looks like a JSON problem
+   from the outside, so each says what happened. */
+if (!is_array($antennaCfg)) {
+    $antennaWarnings[] = 'Settings failed to decode - every option fell back to its default.';
+    $antennaCfg = array();
+}
+if (!is_array($antennaCss)) {
+    $antennaWarnings[] = 'Style map failed to decode - the component is rendering unstyled.';
+    $antennaCss = array();
+}
+
+/* Every key gets a default. Without this, a config that failed to decode would
+   emit an "Undefined array key" warning per access onto the visitor's page. */
+$antennaDefaults = array(
+    'feedUrl' => '', 'feedType' => 'auto', 'itemLimit' => 10, 'startOffset' => 0,
+    'sortOrder' => 'newest', 'cacheTtl' => 60, 'include' => array(), 'exclude' => array(),
+    /* These two mirror their controls' declared defaults rather than being blank,
+       so that a config that failed to decode falls back to what the Inspector
+       actually shows. */
+    'fallbackBehavior' => 'hide',
+    'fallbackMessage' => 'Episodes are unavailable right now. Please check back soon.',
+    'showDiagnostics' => false,
+    'isPreview' => false,
+    'layoutMode' => 'grid', 'headingLevel' => 'h3', 'imagePosition' => 'left', 'showDivider' => true,
+    'showImage' => true, 'fallbackImage' => '', 'minImageWidth' => 400, 'lazyLoad' => true,
+    'forceHttps' => true, 'showImageOverlay' => false, 'showPlayOverlay' => false,
+    'showTitle' => true, 'showDate' => true, 'dateFormat' => 'medium', 'showDescription' => true,
+    'removeText' => array(), 'stripFromMarker' => '',
+    'showEpisodeNumber' => true, 'episodePrefix' => 'Ep.', 'showSeason' => false,
+    'showDuration' => true, 'durationFormat' => 'human', 'showExplicit' => false,
+    'showAuthor' => true, 'showReadingTime' => false, 'wordsPerMinute' => 225,
+    'showTags' => false, 'maxTags' => 3,
+    'playerStyle' => 'custom', 'showTime' => true, 'showSkip' => true, 'skipBack' => 15,
+    'skipForward' => 30, 'showSpeed' => true, 'showDownload' => false, 'preload' => 'none',
+    /* 'linkRel' is derived rather than a control of its own: the hook writes
+       'noopener noreferrer' whenever linkTarget is 'new'. So the fallback here
+       has to be what the hook would derive from the linkTarget default sitting
+       beside it, not blank. Blank meant a config that failed to decode emitted
+       target="_blank" with an empty rel - the one path that opens a feed's link
+       in a new tab without noopener. */
+    'linkTarget' => 'new', 'linkRel' => 'noopener noreferrer',
+    'showReadMore' => false, 'readMoreText' => 'Read more',
+    'enableJsonLd' => true, 'showCredit' => false, 'cardCssClasses' => ''
+);
+
+$A = array_merge($antennaDefaults, $antennaCfg);
+$S = $antennaCss;
+
+/* ---------- small helpers (closures: templates run once per instance) ---------- */
+
+$esc = function ($v) {
+    return htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
+};
+
+$cls = function ($key) use ($S) {
+    return isset($S[$key]) ? trim(preg_replace('/\s+/', ' ', $S[$key])) : '';
+};
+
+$absolutise = function ($url, $base) {
+    $url = trim((string) $url);
+    if ($url === '') { return ''; }
+    if (strpos($url, '//') === 0) { return 'https:' . $url; }
+    if (preg_match('#^https?://#i', $url)) { return $url; }
+    /* Any other scheme (data:, mailto:, javascript:) is not a path. Returned as
+       it is, $safeUrl drops it and the channel image or Fallback Image is used,
+       rather than it becoming https://host/post/data:image/gif;... which passes
+       the allowlist and 404s. */
+    if (preg_match('#^[a-z][a-z0-9+.-]*:#i', $url)) { return $url; }
+    $parts = parse_url($base);
+    if (!$parts || empty($parts['scheme']) || empty($parts['host'])) { return $url; }
+    $root = $parts['scheme'] . '://' . $parts['host']
+        . (isset($parts['port']) ? ':' . (int) $parts['port'] : '');
+    if (strpos($url, '/') === 0) { return $root . $url; }
+    $dir = isset($parts['path']) ? preg_replace('#/[^/]*$#', '/', $parts['path']) : '/';
+    return $root . $dir . $url;
+};
+
+/* Feed content is untrusted. Escaping alone does not stop a javascript: or
+   data: href from executing on click, so URLs are scheme-checked before use. */
+$safeUrl = function ($url) {
+    $url = trim((string) $url);
+    if ($url === '') { return ''; }
+    if (strpos($url, '//') === 0) { return 'https:' . $url; }
+    return preg_match('#^https?://#i', $url) ? $url : '';
+};
+
+/* The author's own values are not feed content. A project resource arrives as a
+   site-relative path, so the allowlist above discarded it and the Fallback Image
+   control could never render anything - the one input it exists to accept was
+   the one input it rejected. These values are still checked, but for schemes
+   that can execute rather than for being absolute. */
+$localUrl = function ($url) {
+    $url = trim((string) $url);
+    if ($url === '') { return ''; }
+    if (strpos($url, '//') === 0) { return 'https:' . $url; }
+    if (preg_match('#^https?://#i', $url)) { return $url; }
+    /* A scheme still present here is neither http(s) nor a path: javascript:,
+       data: and vbscript: all match this and are dropped. A bare relative or
+       root-relative path has no scheme and survives. */
+    if (preg_match('#^[a-z][a-z0-9+.-]*:#i', $url)) { return ''; }
+    return $url;
+};
+
+/* The download attribute is honoured for same-origin addresses only, and a feed
+   reader is the worst case for that rule: an enclosure lives wherever the
+   podcast is hosted, so it is almost never this site's own address. Browsers
+   ignore the attribute there - filename hint included - and treat the click as
+   an ordinary navigation, so the visitor leaves the page and lands on the bare
+   file. Nothing this component emits can grant itself the permission, and no
+   header on the podcast host's bucket changes it either, so the button stops
+   promising a download it cannot deliver and opens the file in a new tab
+   instead. A genuinely local enclosure keeps the real download.
+
+   Origin means scheme, host and port together, which is why a plain host
+   comparison is not enough. An address that cannot be parsed is treated as
+   local, and so keeps the real download - deliberately, and the same rule the
+   CMS audio players follow, so all of them behave alike where the test cannot
+   decide. Only a degenerate absolute address such as https:// with nothing
+   after it can get here, because the scheme check upstream has already dropped
+   everything that is not http(s), and an enclosure like that neither plays nor
+   downloads whichever attribute it gets. */
+$isRemote = function ($url) {
+    $parts = parse_url($url);
+    if (!$parts || empty($parts['host'])) { return false; }   /* unparseable or hostless: local */
+    $scheme = isset($parts['scheme']) ? strtolower($parts['scheme']) : '';
+    $host   = strtolower($parts['host']);
+    $port   = isset($parts['port']) ? (int) $parts['port']
+            : ($scheme === 'https' ? 443 : ($scheme === 'http' ? 80 : 0));
+
+    $selfHost = isset($_SERVER['HTTP_HOST']) ? strtolower($_SERVER['HTTP_HOST']) : '';
+    if ($selfHost === '') { return true; }
+    $selfScheme = (!empty($_SERVER['HTTPS']) && strtolower($_SERVER['HTTPS']) !== 'off')
+        ? 'https' : 'http';
+    $selfPort = ($selfScheme === 'https') ? 443 : 80;
+    /* HTTP_HOST carries the port when it is not the default one. An IPv6 literal
+       also contains colons, so only a trailing numeric port is split off. */
+    if (preg_match('/^(.*):(\d+)$/', $selfHost, $m)) {
+        $selfHost = $m[1];
+        $selfPort = (int) $m[2];
+    }
+    return !($scheme === $selfScheme && $host === $selfHost && $port === $selfPort);
+};
+
+/* ---------- fetch with file cache, stale-on-error ---------- */
+
+$fetchFeed = function ($url, $ttlMinutes) use (&$antennaWarnings, &$antennaCacheDir) {
+    /* The system temp dir is often shared between accounts on cheap hosting, and
+       a bare md5(url) filename would be guessable by a co-tenant. Namespacing the
+       directory and salting the filename with a per-installation value keeps one
+       site from reading or poisoning another's cached feeds. */
+    /* __DIR__ is a compile-time magic constant, not a registered constant, so
+       defined('__DIR__') is always false - guarding on it silently dropped this
+       half of the salt and left DOCUMENT_ROOT as the only entropy. */
+    $salt = __DIR__ . (isset($_SERVER['DOCUMENT_ROOT']) ? $_SERVER['DOCUMENT_ROOT'] : '');
+    $siteKey = substr(sha1('antenna|' . $salt), 0, 16);
+    $dir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'antenna-' . $siteKey;
+    if (!is_dir($dir)) { @mkdir($dir, 0700, true); }
+    $antennaCacheDir = $dir;
+    $file = $dir . DIRECTORY_SEPARATOR . sha1($siteKey . '|' . $url) . '.cache';
+    /* The salt above is guessable on hosts that name folders after the account,
+       and where every account shares one temp dir another account could create
+       this folder first, open to everyone, and plant a cache file dated in the
+       future that would then be served for good. A folder this code made is
+       0700, so one that other accounts can write to was not made here and is
+       not used: the feed is then fetched on every view instead. Tested only
+       where fileperms() is allowed, since on PHP 8 a disabled function throws. */
+    $perms = (is_dir($dir) && function_exists('fileperms')) ? @fileperms($dir) : false;
+    $openToOthers = $perms !== false && ($perms & 0022) !== 0;
+    $cacheUsable = is_dir($dir) && is_writable($dir) && !$openToOthers;
+    if ($openToOthers) {
+        $antennaWarnings[] = 'The cache folder can be written by other accounts on this server, so it is not used.';
+    }
+
+    /* The response is buffered whole, then regex-cleaned, then parsed into a DOM,
+       so its size is this component's real memory ceiling. A timeout bounds how
+       long the transfer runs, not how many bytes it delivers: a feed host that
+       starts answering with something enormous - an error page, a bad export, a
+       compromised host - would otherwise exhaust memory_limit and take the page
+       down with it. 10 MB clears a 1000-item podcast feed several times over. */
+    $maxBytes = 10485760;
+
+    /* Retry backoff. The cache file's age only moves on a successful fetch, so
+       once the TTL had lapsed with the feed host down, every request that won
+       the lock below made a fresh attempt - and a host that stalls rather than
+       refusing holds that request for the full 15-second timeout before the
+       stale copy is served. On a quiet site nearly every visitor is the lock
+       holder, so nearly every page view paid it for as long as the outage
+       lasted. A failed fetch now leaves this stamp beside the cache file,
+       holding the time of the next permitted attempt, and until then the stale
+       copy is served without trying. The wait is the TTL or five minutes,
+       whichever is shorter, so a short TTL is never stretched. Only a stale copy
+       is ever served this way: with nothing cached there is no stamp, and the
+       cold-cache path further down still fetches, exactly as it did. */
+    $retryFile = $file . '.retry';
+    $backoff = $ttlMinutes > 0 ? min((int) $ttlMinutes, 5) * 60 : 0;
+
+    if ($cacheUsable && $ttlMinutes > 0 && is_file($file)) {
+        $age = time() - (int) filemtime($file);
+        /* A file dated in the future is a moved clock or a planted copy, and is
+           treated as expired rather than as fresh for ever. */
+        if ($age >= 0 && $age < $ttlMinutes * 60) {
+            $antennaWarnings[] = 'Served from cache (' . (int) floor($age / 60) . ' min old).';
+            return (string) file_get_contents($file);
+        }
+        /* A stamp further ahead than one backoff can only come from a clock
+           that moved, and is ignored rather than trusted for longer. */
+        $now = time();
+        $retryAt = is_file($retryFile) ? (int) @file_get_contents($retryFile) : 0;
+        if ($retryAt > $now && $retryAt <= $now + $backoff) {
+            $antennaWarnings[] = 'The last fetch failed - serving the last good copy. Next attempt in '
+                . (int) ceil(($retryAt - $now) / 60) . ' min.';
+            return (string) file_get_contents($file);
+        }
+    }
+
+    /* Past this point the cache is stale or missing and an upstream fetch is due.
+       Without a lock every concurrent request makes its own, so a traffic burst
+       arriving as the TTL lapses puts N requests on a 15-second call at once -
+       on shared hosting that is the whole PHP worker pool. One request refreshes;
+       the rest serve the stale copy immediately, which is the same thing the
+       fetch-failure path below already does. */
+    $lock = null;
+    if ($cacheUsable) {
+        $lock = @fopen($file . '.lock', 'c');
+        if ($lock && !@flock($lock, LOCK_EX | LOCK_NB)) {
+            @fclose($lock);
+            $lock = null;
+            if (is_file($file)) {
+                $antennaWarnings[] = 'Refresh already running elsewhere - serving the last good copy.';
+                return (string) file_get_contents($file);
+            }
+            /* Nothing cached to fall back on, so fetch anyway rather than
+               rendering an empty component on a cold cache. */
+        }
+    }
+    $release = function () use (&$lock) {
+        if ($lock) { @flock($lock, LOCK_UN); @fclose($lock); $lock = null; }
+    };
+
+    $body = null;
+    $ua = 'Mozilla/5.0 (compatible; Antenna/1.0; +RapidWeaver Elements feed reader)';
+
+    /* curl_exec is tested as well as curl_init: hardened hosts often list it in
+       disable_functions while the extension stays loaded, and on PHP 8 calling
+       a disabled function throws. function_exists() is false for one on 7 and 8,
+       so such a host falls through to the allow_url_fopen path below. */
+    if (function_exists('curl_init') && function_exists('curl_exec')) {
+        $ch = curl_init($url);
+        /* The first URL is scheme-checked before we get here, but the redirect
+           chain belongs to the feed host. Pin both hops to HTTP(S) so a redirect
+           to file:// or gopher:// cannot be followed on older libcurl builds. */
+        /* CURLOPT_PROTOCOLS and CURLOPT_REDIR_PROTOCOLS are deprecated from cURL
+           7.85 in favour of the _STR pair, which take a comma-separated list
+           instead of a bitmask. The new names are preferred where the build has
+           them so a modern host emits no deprecation, and the old bitmask still
+           covers everything older. Both are error-suppressed: failing to pin the
+           protocols is not a reason to abandon the fetch, and the URL itself is
+           already scheme-checked before we reach here. */
+        if (defined('CURLOPT_PROTOCOLS_STR')) {
+            @curl_setopt($ch, CURLOPT_PROTOCOLS_STR, 'http,https');
+            if (defined('CURLOPT_REDIR_PROTOCOLS_STR')) {
+                @curl_setopt($ch, CURLOPT_REDIR_PROTOCOLS_STR, 'http,https');
+            }
+        } elseif (defined('CURLPROTO_HTTP') && defined('CURLPROTO_HTTPS')) {
+            $httpOnly = CURLPROTO_HTTP | CURLPROTO_HTTPS;
+            @curl_setopt($ch, CURLOPT_PROTOCOLS, $httpOnly);
+            if (defined('CURLOPT_REDIR_PROTOCOLS')) {
+                @curl_setopt($ch, CURLOPT_REDIR_PROTOCOLS, $httpOnly);
+            }
+        }
+        /* Three guards, because they cover different answers. MAXFILESIZE rejects
+           a response that declares an oversized Content-Length before any of it
+           is read; the progress callback catches a chunked response, which
+           declares no length at all, once it has run past the ceiling. Both of
+           those count bytes on the wire, though, and the empty ENCODING below
+           invites the host to compress: a 51 KB gzip body inflated to 52 MB
+           straight past the pair of them, measured against libcurl 8.7. So the
+           body is collected by the write callback further down rather than by
+           RETURNTRANSFER, and that callback counts what comes out of the
+           decoder - the bytes that actually land in memory - and stops the
+           transfer at the ceiling. A memory-limit fatal cannot be caught, so
+           this is the only place it can be prevented. The first two stay as
+           the cheap early exits for a declared or uncompressed size. */
+        if (defined('CURLOPT_MAXFILESIZE')) {
+            @curl_setopt($ch, CURLOPT_MAXFILESIZE, $maxBytes);
+        }
+        @curl_setopt($ch, CURLOPT_NOPROGRESS, false);
+        @curl_setopt($ch, CURLOPT_PROGRESSFUNCTION, function ($res, $dlTotal, $dlNow) use ($maxBytes) {
+            return ($dlNow > $maxBytes || $dlTotal > $maxBytes) ? 1 : 0;
+        });
+        curl_setopt_array($ch, array(
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_MAXREDIRS      => 5,
+            CURLOPT_CONNECTTIMEOUT => 6,
+            CURLOPT_TIMEOUT        => 15,
+            CURLOPT_ENCODING       => '',
+            CURLOPT_USERAGENT      => $ua,
+            CURLOPT_SSL_VERIFYPEER => true,
+            CURLOPT_SSL_VERIFYHOST => 2,
+            CURLOPT_HTTPHEADER     => array('Accept: application/rss+xml, application/atom+xml, application/feed+json, application/xml, text/xml, application/json;q=0.9, */*;q=0.8')
+        ));
+        /* Set after the array, and with no RETURNTRANSFER anywhere: the two are
+           alternative ways of collecting the body and whichever is set last
+           wins, so a RETURNTRANSFER set after this would quietly bypass the
+           ceiling. Returning anything but the chunk's own length makes libcurl
+           abort with CURLE_WRITE_ERROR, so the buffer never holds more than the
+           ceiling, and the flag records why the transfer stopped. */
+        $buffer = '';
+        $tooBig = false;
+        curl_setopt($ch, CURLOPT_WRITEFUNCTION, function ($handle, $chunk) use (&$buffer, &$tooBig, $maxBytes) {
+            $n = strlen($chunk);
+            if (strlen($buffer) + $n > $maxBytes) {
+                $tooBig = true;
+                return 0;
+            }
+            $buffer .= $chunk;
+            return $n;
+        });
+        $res = curl_exec($ch);
+        $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $errno = curl_errno($ch);
+        /* The write callback's flag (the transfer then ends in 23,
+           CURLE_WRITE_ERROR), 42 (CURLE_ABORTED_BY_CALLBACK, from the progress
+           callback) and 63 (CURLE_FILESIZE_EXCEEDED) all mean the ceiling above
+           tripped, not that the network failed, and saying so is the difference
+           between a diagnosable feed and a mysterious one. */
+        if ($tooBig || ($res === false && ($errno === 42 || $errno === 63))) {
+            $antennaWarnings[] = 'Feed is larger than the ' . (int) round($maxBytes / 1048576) . ' MB limit and was not loaded.';
+        } elseif ($res === false) {
+            $antennaWarnings[] = 'Network error: ' . curl_error($ch);
+        } elseif ($code >= 400) {
+            $antennaWarnings[] = 'Feed returned HTTP ' . $code . '.';
+        } else {
+            $body = $buffer;
+        }
+        /* A no-op since PHP 8.0, where the handle frees itself, and deprecated
+           from 8.5, where every uncached fetch would log a notice. Only the
+           versions it still does something on call it. */
+        if (PHP_VERSION_ID < 80000) {
+            curl_close($ch);
+        }
+    } elseif (ini_get('allow_url_fopen')) {
+        $ctx = stream_context_create(array('http' => array(
+            'method'        => 'GET',
+            'timeout'       => 15,
+            'user_agent'    => $ua,
+            'follow_location' => 1,
+            'max_redirects' => 5
+        )));
+        /* One byte over the ceiling is enough to know the feed exceeds it, and
+           the length argument stops the read there rather than after the whole
+           body has already been pulled into memory. */
+        $res = @file_get_contents($url, false, $ctx, 0, $maxBytes + 1);
+        if ($res === false) {
+            $antennaWarnings[] = 'Network error: could not open the feed URL.';
+        } elseif (strlen($res) > $maxBytes) {
+            $antennaWarnings[] = 'Feed is larger than the ' . (int) round($maxBytes / 1048576) . ' MB limit and was not loaded.';
+        } else {
+            $body = $res;
+        }
+    } else {
+        $antennaWarnings[] = 'This server has neither cURL nor allow_url_fopen enabled.';
+    }
+
+    /* A host can answer 200 with something that is not a feed at all: a bot
+       challenge, a parked-domain page, a maintenance notice. Cached, that page
+       replaced the last good copy and the fallback showed for the whole TTL, in
+       exactly the outage the stale copy exists for. So only a body that opens
+       as JSON or carries an RSS, Atom or RDF root is kept; anything else takes
+       the failure path below, with its stale copy and backoff. */
+    if ($body !== null && trim($body) !== ''
+        && !preg_match('/^\s*(?:\xEF\xBB\xBF)?\s*\{|<(?:[A-Za-z][\w.-]*:)?(?:rss|feed|RDF)\b/i', substr($body, 0, 65536))) {
+        $antennaWarnings[] = 'The feed address answered with a page that is not a feed, so it was not used.';
+        $body = null;
+    }
+
+    if ($body !== null && trim($body) !== '') {
+        /* Write-then-rename: two concurrent misses writing the same file directly
+           interleave, and a reader picking up the half-written result caches a
+           truncated feed that the stale-on-error path below would then serve for
+           good. rename() is atomic within one filesystem. */
+        if ($cacheUsable) {
+            /* getmypid() is in some hosts' disable_functions list, and on PHP 8
+               calling a disabled function throws. Here that came after a good
+               fetch, so the feed was thrown away and refetched on every view. */
+            $tmp = $file . '.' . (function_exists('getmypid') ? getmypid() : mt_rand()) . '.tmp';
+            if (@file_put_contents($tmp, $body) !== false) {
+                if (!@rename($tmp, $file)) { @unlink($tmp); }
+            }
+            /* The host answered, so any backoff left by an earlier failure is over. */
+            if (is_file($retryFile)) { @unlink($retryFile); }
+        }
+        /* Released only after the rename, so a waiting request that takes the
+           lock next sees the finished file rather than the previous one. */
+        $release();
+        return $body;
+    }
+
+    /* A failure with a stale copy to fall back on starts the backoff described
+       at the top of this helper. The stamp is written before the lock is
+       released, so the next request to take the lock already sees it. */
+    $stale = $cacheUsable && is_file($file);
+    $holding = $stale && $backoff > 0
+        && @file_put_contents($retryFile, (string) (time() + $backoff)) !== false;
+    $release();
+
+    if ($stale) {
+        $antennaWarnings[] = 'Fetch failed — serving the last good copy.';
+        if ($holding) {
+            $antennaWarnings[] = 'Next attempt in ' . (int) ($backoff / 60) . ' min.';
+        }
+        return (string) file_get_contents($file);
+    }
+    return null;
+};
+
+/* ---------- encoding + malformed-XML repair ---------- */
+
+$cleanRaw = function ($raw) {
+    /* Whitespace before the XML declaration (the classic stray newline from a
+       WordPress plugin) is a fatal error to libxml, so it goes along with the
+       BOM, in whichever order the two arrive. */
+    $raw = ltrim(preg_replace('/^\xEF\xBB\xBF/', '', ltrim($raw)));
+    $charset = 'UTF-8';
+    if (preg_match('/<\?xml[^>]*encoding=["\']([^"\']+)["\']/i', substr($raw, 0, 200), $m)) {
+        $charset = strtoupper(trim($m[1]));
+    }
+    if ($charset !== 'UTF-8' && $charset !== 'UTF8' && function_exists('iconv')) {
+        $converted = @iconv($charset, 'UTF-8//IGNORE', $raw);
+        if ($converted !== false && $converted !== '') {
+            $raw = preg_replace('/(<\?xml[^>]*encoding=["\'])[^"\']+(["\'])/i', '${1}UTF-8${2}', $converted, 1);
+        }
+    }
+    /* A feed that says UTF-8 but carries one stray Windows-1252 byte - a curly
+       quote pasted from a word processor is the usual one - is a fatal error to
+       libxml, and every item was lost for one character. Each byte that is not
+       part of valid UTF-8 is now read as Windows-1252, and the valid text
+       around it is left exactly as it was. Only a feed that fails the UTF-8
+       test takes this path, and a failed pass leaves the body as it came. */
+    if (($charset === 'UTF-8' || $charset === 'UTF8') && !preg_match('//u', $raw)) {
+        $cp1252 = array(
+            0x80 => 0x20AC, 0x82 => 0x201A, 0x83 => 0x0192, 0x84 => 0x201E, 0x85 => 0x2026,
+            0x86 => 0x2020, 0x87 => 0x2021, 0x88 => 0x02C6, 0x89 => 0x2030, 0x8A => 0x0160,
+            0x8B => 0x2039, 0x8C => 0x0152, 0x8E => 0x017D, 0x91 => 0x2018, 0x92 => 0x2019,
+            0x93 => 0x201C, 0x94 => 0x201D, 0x95 => 0x2022, 0x96 => 0x2013, 0x97 => 0x2014,
+            0x98 => 0x02DC, 0x99 => 0x2122, 0x9A => 0x0161, 0x9B => 0x203A, 0x9C => 0x0153,
+            0x9E => 0x017E, 0x9F => 0x0178
+        );
+        $fixed = preg_replace_callback(
+            '/[\x00-\x7F]++|[\xC2-\xDF][\x80-\xBF]|\xE0[\xA0-\xBF][\x80-\xBF]|[\xE1-\xEC\xEE\xEF][\x80-\xBF]{2}|\xED[\x80-\x9F][\x80-\xBF]|\xF0[\x90-\xBF][\x80-\xBF]{2}|[\xF1-\xF3][\x80-\xBF]{3}|\xF4[\x80-\x8F][\x80-\xBF]{2}|([\x80-\xFF])/',
+            function ($m) use ($cp1252) {
+                if (!isset($m[1])) { return $m[0]; }
+                $b = ord($m[1]);
+                $cp = $b >= 0xA0 ? $b : (isset($cp1252[$b]) ? $cp1252[$b] : 0);
+                if ($cp === 0) { return ''; }
+                if ($cp < 0x800) { return chr(0xC0 | ($cp >> 6)) . chr(0x80 | ($cp & 0x3F)); }
+                return chr(0xE0 | ($cp >> 12)) . chr(0x80 | (($cp >> 6) & 0x3F)) . chr(0x80 | ($cp & 0x3F));
+            },
+            $raw
+        );
+        if (is_string($fixed)) { $raw = $fixed; }
+    }
+    return preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F]/', '', $raw);
+};
+
+/* ---------- mbstring polyfills (not every shared host enables it) ---------- */
+
+$mbLower = function ($s) {
+    return function_exists('mb_strtolower') ? mb_strtolower($s, 'UTF-8') : strtolower($s);
+};
+$mbPos = function ($hay, $needle) {
+    return function_exists('mb_strpos') ? mb_strpos($hay, $needle, 0, 'UTF-8') : strpos($hay, $needle);
+};
+$mbCut = function ($s, $len) {
+    return function_exists('mb_substr') ? mb_substr($s, 0, $len, 'UTF-8') : substr($s, 0, $len);
+};
+
+/* ---------- value normalisers ---------- */
+
+$toSeconds = function ($raw) {
+    $raw = trim((string) $raw);
+    if ($raw === '') { return 0; }
+    /* Fractions of a second are allowed and dropped: "2547.5" and "00:42:27.250"
+       both read as 0 until build 33. The unit words end at anything that is not
+       a letter rather than at a word boundary, so the run-together "1h30m" and
+       ISO 8601's "PT42M27S" count their hours and minutes too. */
+    if (preg_match('/^\d+(?:\.\d+)?$/', $raw)) { return (int) $raw; }
+    if (preg_match('/^(\d+):(\d{1,2}):(\d{1,2})(?:\.\d+)?$/', $raw, $m)) {
+        return ((int) $m[1]) * 3600 + ((int) $m[2]) * 60 + (int) $m[3];
+    }
+    if (preg_match('/^(\d+):(\d{1,2})(?:\.\d+)?$/', $raw, $m)) {
+        return ((int) $m[1]) * 60 + (int) $m[2];
+    }
+    $total = 0; $matched = false;
+    if (preg_match('/(\d+)\s*(?:hours?|hrs?|h)(?![a-z])/i', $raw, $m)) { $total += ((int) $m[1]) * 3600; $matched = true; }
+    if (preg_match('/(\d+)\s*(?:minutes?|mins?|m)(?![a-z])/i', $raw, $m)) { $total += ((int) $m[1]) * 60; $matched = true; }
+    if (preg_match('/(\d+)(?:\.\d+)?\s*(?:seconds?|secs?|s)(?![a-z])/i', $raw, $m)) { $total += (int) $m[1]; $matched = true; }
+    return $matched ? $total : 0;
+};
+
+$fmtDuration = function ($sec, $style) {
+    $sec = (int) $sec;
+    if ($sec <= 0) { return ''; }
+    $h = (int) floor($sec / 3600);
+    $m = (int) floor(($sec % 3600) / 60);
+    $s = $sec % 60;
+    if ($style === 'long') {
+        return sprintf('%02d:%02d:%02d', $h, $m, $s);
+    }
+    if ($style === 'short') {
+        return $h > 0 ? sprintf('%d:%02d:%02d', $h, $m, $s) : sprintf('%d:%02d', $m, $s);
+    }
+    if ($h > 0) { return $m > 0 ? $h . ' hr ' . $m . ' min' : $h . ' hr'; }
+    if ($m > 0) { return $m . ' min'; }
+    return $s . ' sec';
+};
+
+/* The offset the feed wrote its own date in. A feed says "Mon, 26 Oct 2026
+   21:00:00 -0700" and means the 26th; shown in the web server's zone it read
+   "Oct 27" on a UTC or European host, a day nobody chose. Showing it in the
+   offset it was written in gives the publisher's own date wherever the site is
+   hosted. A date with no zone of its own keeps the server's, as before. */
+$tzOffset = function ($dateText, $ts) {
+    if ($ts <= 0 || !is_string($dateText) || $dateText === '') { return null; }
+    $dt = @date_create($dateText);
+    return $dt ? (int) $dt->getOffset() : null;
+};
+
+$fmtDate = function ($ts, $style, $off = null) {
+    if (!$ts) { return ''; }
+    $day = function ($fmt) use ($ts, $off) {
+        return $off === null ? date($fmt, $ts) : gmdate($fmt, $ts + $off);
+    };
+    if ($style === 'relative') {
+        $diff = time() - $ts;
+        /* A date still to come is not "just now"; it is shown as the date. */
+        if ($diff < 0) { return $day('M j, Y'); }
+        if ($diff < 60) { return 'just now'; }
+        if ($diff < 3600) { $n = (int) floor($diff / 60); return $n . ($n === 1 ? ' minute ago' : ' minutes ago'); }
+        if ($diff < 86400) { $n = (int) floor($diff / 3600); return $n . ($n === 1 ? ' hour ago' : ' hours ago'); }
+        if ($diff < 2592000) { $n = (int) floor($diff / 86400); return $n . ($n === 1 ? ' day ago' : ' days ago'); }
+        if ($diff < 31536000) { $n = (int) floor($diff / 2592000); return $n . ($n === 1 ? ' month ago' : ' months ago'); }
+        $n = (int) floor($diff / 31536000);
+        return $n . ($n === 1 ? ' year ago' : ' years ago');
+    }
+    if ($style === 'short') { return $day('m/d/y'); }
+    if ($style === 'long') { return $day('j F Y'); }
+    if ($style === 'iso') { return $day('Y-m-d'); }
+    return $day('M j, Y');
+};
+
+/* A /u pattern returns NULL when the subject is not valid UTF-8, and a feed that
+   declares UTF-8 while shipping Latin-1 bytes is common enough to matter: the
+   whitespace collapse below silently blanked every description, and on PHP 8.1+
+   the resulting trim(null) also printed a deprecation onto the visitor's page.
+   Try the Unicode-aware pass, fall back to the ASCII one, never return null. */
+$squash = function ($s) {
+    $s = (string) $s;
+    $r = preg_replace('/\s+/u', ' ', $s);
+    if ($r === null) { $r = preg_replace('/\s+/', ' ', $s); }
+    return trim($r === null ? $s : $r);
+};
+
+$toText = function ($html) use ($squash) {
+    $t = preg_replace('#<(script|style)\b[^>]*>.*?</\1>#is', ' ', (string) $html);
+    $t = preg_replace('#<br\s*/?>|</p>|</div>|</li>#i', ' ', $t);
+    $t = strip_tags($t);
+    $t = html_entity_decode($t, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    return $squash($t);
+};
+
+$applyStrips = function ($text) use ($A, $mbPos, $mbCut, $squash) {
+    if (!empty($A['stripFromMarker'])) {
+        $pos = $mbPos($text, $A['stripFromMarker']);
+        if ($pos !== false) { $text = $mbCut($text, $pos); }
+    }
+    if (!empty($A['removeText']) && is_array($A['removeText'])) {
+        foreach ($A['removeText'] as $phrase) {
+            if ($phrase !== '') { $text = str_ireplace($phrase, '', $text); }
+        }
+    }
+    return $squash($text);
+};
+
+/* ---------- feed parsing ---------- */
+
+$NS = array(
+    'itunes'  => 'http://www.itunes.com/dtds/podcast-1.0.dtd',
+    'media'   => 'http://search.yahoo.com/mrss/',
+    'dc'      => 'http://purl.org/dc/elements/1.1/',
+    'content' => 'http://purl.org/rss/1.0/modules/content/',
+    'atom'    => 'http://www.w3.org/2005/Atom',
+    'yt'      => 'http://www.youtube.com/xml/schemas/2015'
+);
+
+/* The size test only rejects an image that declares its size. Most feed images
+   declare none, and rejecting those would leave the majority of articles with no
+   artwork at all - whereas tracking pixels and spacers almost always do declare
+   width="1"/height="1", which is what this is really for. Height is checked as
+   well as width because plenty of spacers only carry one of the two. */
+$firstImageIn = function ($html, $minWidth) {
+    if (!preg_match_all('/<img[^>]+>/i', (string) $html, $tags)) { return ''; }
+    foreach ($tags[0] as $tag) {
+        if (!preg_match('/\ssrc=["\']([^"\']+)["\']/i', $tag, $m)) { continue; }
+        /* The attribute is HTML, so its &amp; is one ampersand. Read raw and
+           then escaped again on the way out it was published as &amp;amp;, and
+           an image CDN asked for the wrong size or, with a signed address,
+           refused outright. Decoded here once, as a browser would. */
+        $src = html_entity_decode($m[1], ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        /* A data: src is a lazy-load placeholder, with the real address in
+           data-src or a later tag, so it is never the image to use. */
+        if (stripos($src, 'data:') === 0) { continue; }
+        if ($minWidth > 0 && preg_match('/\swidth=["\']?(\d+)/i', $tag, $w) && (int) $w[1] < $minWidth) { continue; }
+        /* Height is tested against a fixed spacer threshold, never against the
+           width setting: a wide, short banner (800x300 under a 400 minimum) is a
+           perfectly good image, but anything one or two pixels tall is not. */
+        if (preg_match('/\sheight=["\']?(\d+)/i', $tag, $hh) && (int) $hh[1] <= 2) { continue; }
+        if (preg_match('/(1x1|spacer|pixel|blank)\./i', $src)) { continue; }
+        return $src;
+    }
+    return '';
+};
+
+$parseFeed = function ($raw) use ($NS, $toSeconds, $toText, $firstImageIn, $A, $absolutise, $tzOffset, &$antennaWarnings) {
+    $result = array('format' => 'unknown', 'channel' => array(), 'items' => array());
+    $trimmed = ltrim($raw);
+
+    /* ---- JSON Feed 1.x ---- */
+    if ($trimmed !== '' && $trimmed[0] === '{') {
+        $json = json_decode($trimmed, true);
+        if (!is_array($json) || empty($json['items']) || !is_array($json['items'])) {
+            $antennaWarnings[] = 'Looks like JSON but has no items array.';
+            return $result;
+        }
+        /* The XML branch below casts every value it reads. JSON arrives already
+           typed, by whoever wrote the feed, and a field the spec calls a string
+           can turn up as an object, an array or a number. Most reads cast it on
+           the way out anyway, but strtotime() and strpos() take a string and
+           PHP 8 throws a TypeError the moment either is handed an array -
+           uncaught, it ended the page at this component, and because the raw
+           body is cached before it is parsed it came back on every request
+           until the feed changed. So each value read below comes through here
+           first: a string, number or boolean becomes a string, and anything else
+           is dropped as if the feed had left it out, which lets the usual
+           fallback for a missing value take over. */
+        $scalarOnly = function ($a, $keys) {
+            foreach ($keys as $k) {
+                if (!isset($a[$k])) { continue; }
+                if (is_scalar($a[$k])) { $a[$k] = (string) $a[$k]; } else { unset($a[$k]); }
+            }
+            return $a;
+        };
+        $json = $scalarOnly($json, array('title', 'home_page_url', 'icon'));
+        $result['format'] = 'JSON Feed';
+        $result['channel'] = array(
+            'title' => isset($json['title']) ? $json['title'] : '',
+            'link'  => isset($json['home_page_url']) ? $json['home_page_url'] : '',
+            'image' => isset($json['icon']) ? $json['icon'] : ''
+        );
+        foreach ($json['items'] as $it) {
+            /* An entry that is not an object carries nothing to show. */
+            if (!is_array($it)) { continue; }
+            $it = $scalarOnly($it, array('id', 'url', 'title', 'summary', 'image', 'date_published', 'content_html', 'content_text'));
+            if (isset($it['author']) && is_array($it['author'])) {
+                $it['author'] = $scalarOnly($it['author'], array('name'));
+            }
+            if (isset($it['authors'][0]) && is_array($it['authors'][0])) {
+                $it['authors'][0] = $scalarOnly($it['authors'][0], array('name'));
+            }
+            $html = isset($it['content_html']) ? $it['content_html'] : (isset($it['content_text']) ? $it['content_text'] : '');
+            $audio = ''; $audioType = ''; $audioBytes = 0;
+            if (!empty($it['attachments']) && is_array($it['attachments'])) {
+                foreach ($it['attachments'] as $att) {
+                    if (!is_array($att)) { continue; }
+                    $att = $scalarOnly($att, array('mime_type', 'url'));
+                    if (isset($att['mime_type']) && strpos($att['mime_type'], 'audio/') === 0) {
+                        $audio = isset($att['url']) ? $att['url'] : '';
+                        $audioType = $att['mime_type'];
+                        $audioBytes = isset($att['size_in_bytes']) ? (int) $att['size_in_bytes'] : 0;
+                        break;
+                    }
+                }
+            }
+            $result['items'][] = array(
+                'guid'      => isset($it['id']) ? $it['id'] : (isset($it['url']) ? $it['url'] : ''),
+                'title'     => isset($it['title']) ? $it['title'] : '',
+                'url'       => isset($it['url']) ? $it['url'] : '',
+                'ts'        => isset($it['date_published']) ? (int) strtotime($it['date_published']) : 0,
+                'off'       => isset($it['date_published']) ? $tzOffset($it['date_published'], (int) strtotime($it['date_published'])) : null,
+                'summary'   => isset($it['summary']) ? $it['summary'] : $html,
+                'contentHtml' => $html,
+                'image'     => isset($it['image']) ? $it['image'] : $firstImageIn($html, $A['minImageWidth']),
+                'author'    => isset($it['author']['name']) ? $it['author']['name'] : (isset($it['authors'][0]['name']) ? $it['authors'][0]['name'] : ''),
+                'tags'      => isset($it['tags']) && is_array($it['tags']) ? array_values(array_filter($it['tags'], 'is_scalar')) : array(),
+                'audioUrl'  => $audio,
+                'audioType' => $audioType,
+                'audioBytes'=> $audioBytes,
+                'duration'  => 0,
+                'episode'   => '',
+                'season'    => '',
+                'explicit'  => false,
+                'videoId'   => ''
+            );
+        }
+        return $result;
+    }
+
+    /* ---- XML: RSS 2.0 / Atom ----
+       LIBXML_NONET blocks external entity fetches and LIBXML_NOENT is deliberately
+       NOT passed, so entity expansion (XXE) stays off. */
+    /* Expansion is off, but that only stops libxml expanding entities while it
+       parses. Reading a node as a string expands every reference in it after
+       the fact, with no limit, so a feed that declares one 20 KB entity and
+       uses it a few thousand times - 80 KB on the wire - became 400 MB in
+       memory at the first title read, a memory-limit fatal that took the rest
+       of the page with it on every request. No real feed declares entities of
+       its own. They can only be declared before the root element, which is the
+       first tag that is not a declaration, comment or processing instruction. */
+    $rootAt = preg_match('/<[^!?]/', $raw, $rm, PREG_OFFSET_CAPTURE) ? $rm[0][1] : strlen($raw);
+    if (stripos(substr($raw, 0, $rootAt), '<!ENTITY') !== false) {
+        $antennaWarnings[] = 'The feed declares entities of its own, which no real feed needs, so it was not read.';
+        return $result;
+    }
+
+    $libxmlWasInternal = libxml_use_internal_errors(true);
+    $flags = LIBXML_NOCDATA | LIBXML_NONET;
+    $xml = simplexml_load_string($raw, 'SimpleXMLElement', $flags);
+    if ($xml === false) {
+        /* The repair leaves CDATA alone, where an ampersand is already legal
+           text: rewriting it there turned "Q&A" into "Q&amp;A" on the page. A
+           bare ampersand becomes &amp;. An HTML name XML does not know, such as
+           &nbsp;, is a fatal error to libxml, so it becomes the character it
+           names; one HTML does not know either stays visible as text. */
+        $repaired = preg_replace_callback('/<!\[CDATA\[.*?\]\]>|&(#?[a-zA-Z0-9]{1,32};)?/s', function ($m) {
+            if ($m[0][0] === '<') { return $m[0]; }
+            if (!isset($m[1]) || $m[1] === '') { return '&amp;'; }
+            $ref = $m[1];
+            if ($ref[0] === '#' || in_array($ref, array('amp;', 'lt;', 'gt;', 'quot;', 'apos;'), true)) { return '&' . $ref; }
+            $named = html_entity_decode('&' . $ref, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            if ($named === '&' . $ref) { return '&amp;' . $ref; }
+            return htmlspecialchars($named, ENT_NOQUOTES, 'UTF-8');
+        }, $raw);
+        if (is_string($repaired)) {
+            $xml = simplexml_load_string($repaired, 'SimpleXMLElement', $flags);
+            if ($xml !== false) { $antennaWarnings[] = 'Feed had unescaped ampersands or HTML entities; repaired before parsing.'; }
+        }
+    }
+    libxml_clear_errors();
+    /* Restore whatever the rest of the page was using. */
+    libxml_use_internal_errors($libxmlWasInternal);
+
+    if ($xml === false) {
+        $antennaWarnings[] = 'The feed is not valid XML or JSON and could not be repaired.';
+        return $result;
+    }
+
+    $rootName = strtolower($xml->getName());
+
+    if ($rootName === 'rdf') {
+        $antennaWarnings[] = 'RSS 1.0 / RDF feeds are not supported in this version.';
+        return $result;
+    }
+
+    $rawItems = array();
+
+    if ($rootName === 'feed') {
+        $result['format'] = 'Atom';
+        $result['channel']['title'] = (string) $xml->title;
+        foreach ($xml->link as $l) {
+            $rel = (string) $l['rel'];
+            if ($rel === '' || $rel === 'alternate') { $result['channel']['link'] = (string) $l['href']; break; }
+        }
+        $result['channel']['image'] = (string) $xml->logo;
+        foreach ($xml->entry as $e) { $rawItems[] = $e; }
+    } elseif (isset($xml->channel)) {
+        $result['format'] = 'RSS 2.0';
+        $ch = $xml->channel;
+        $result['channel']['title'] = (string) $ch->title;
+        $result['channel']['link'] = (string) $ch->link;
+        $chIt = $ch->children($NS['itunes']);
+        $chImage = '';
+        if (isset($chIt->image) && isset($chIt->image->attributes()->href)) {
+            $chImage = (string) $chIt->image->attributes()->href;
+        } elseif (isset($ch->image->url)) {
+            $chImage = (string) $ch->image->url;
+        }
+        $result['channel']['image'] = $chImage;
+        foreach ($ch->item as $i) { $rawItems[] = $i; }
+    } else {
+        $antennaWarnings[] = 'Unrecognised feed root element: <' . $rootName . '>.';
+        return $result;
+    }
+
+    $isAtom = ($result['format'] === 'Atom');
+
+    foreach ($rawItems as $node) {
+        $it = $node->children($NS['itunes']);
+        $md = $node->children($NS['media']);
+        $dc = $node->children($NS['dc']);
+        $cn = $node->children($NS['content']);
+        $yt = $node->children($NS['yt']);
+
+        $title = trim((string) $node->title);
+
+        /* link */
+        $url = '';
+        if ($isAtom) {
+            foreach ($node->link as $l) {
+                $rel = (string) $l['rel'];
+                if ($rel === '' || $rel === 'alternate') { $url = (string) $l['href']; break; }
+            }
+            if ($url === '' && isset($node->link[0])) { $url = (string) $node->link[0]['href']; }
+        } else {
+            $url = trim((string) $node->link);
+            if ($url === '' && isset($node->guid)) {
+                $g = trim((string) $node->guid);
+                if (preg_match('#^https?://#i', $g)) { $url = $g; }
+            }
+        }
+
+        /* date — never throw, fall back to feed order */
+        $dateRaw = '';
+        if ($isAtom) {
+            $dateRaw = (string) ($node->published ? $node->published : $node->updated);
+        } else {
+            $dateRaw = (string) $node->pubDate;
+            if ($dateRaw === '' && isset($dc->date)) { $dateRaw = (string) $dc->date; }
+        }
+        /* strtotime() returns false on an unparseable date; the (int) cast turns
+           that into 0, which is the "no date" sentinel used from here on. */
+        $ts = $dateRaw !== '' ? (int) strtotime($dateRaw) : 0;
+
+        /* content */
+        $contentHtml = '';
+        if (isset($cn->encoded)) { $contentHtml = (string) $cn->encoded; }
+        elseif ($isAtom && isset($node->content)) { $contentHtml = (string) $node->content; }
+
+        $summary = '';
+        if (isset($it->summary) && trim((string) $it->summary) !== '') { $summary = (string) $it->summary; }
+        elseif (isset($node->description)) { $summary = (string) $node->description; }
+        elseif ($isAtom && isset($node->summary)) { $summary = (string) $node->summary; }
+        elseif (isset($md->description)) { $summary = (string) $md->description; }
+        if ($summary === '') { $summary = $contentHtml; }
+
+        /* audio enclosure — tracking prefixes are preserved deliberately */
+        $audioUrl = ''; $audioType = ''; $audioBytes = 0;
+        if (isset($node->enclosure)) {
+            foreach ($node->enclosure as $enc) {
+                $t = (string) $enc['type'];
+                $eu = (string) $enc['url'];
+                /* A typeless enclosure is only assumed to be audio when the URL
+                   looks like it: accepting every typeless enclosure handed the
+                   player an image URL on feeds that omit the attribute. */
+                $looksAudio = (bool) preg_match('/\.(mp3|m4a|aac|ogg|oga|opus|wav|flac|m4b)(\?|#|$)/i', $eu);
+                if (strpos($t, 'audio/') === 0 || ($t === '' && $looksAudio)) {
+                    $audioUrl = $eu;
+                    $audioType = $t !== '' ? $t : 'audio/mpeg';
+                    $audioBytes = (int) $enc['length'];
+                    break;
+                }
+            }
+        }
+        if ($audioUrl === '' && $isAtom) {
+            foreach ($node->link as $l) {
+                if ((string) $l['rel'] === 'enclosure' && strpos((string) $l['type'], 'audio/') === 0) {
+                    $audioUrl = (string) $l['href'];
+                    $audioType = (string) $l['type'];
+                    $audioBytes = (int) $l['length'];
+                    break;
+                }
+            }
+        }
+
+        /* image chain */
+        $image = '';
+        if (isset($it->image) && isset($it->image->attributes()->href)) {
+            $image = (string) $it->image->attributes()->href;
+        }
+        if ($image === '' && isset($md->thumbnail)) {
+            $best = ''; $bestW = -1;
+            foreach ($md->thumbnail as $th) {
+                $w = (int) $th['width'];
+                if ($w >= $bestW) { $bestW = $w; $best = (string) $th['url']; }
+            }
+            $image = $best;
+        }
+        if ($image === '' && isset($md->group) && isset($md->group->thumbnail)) {
+            foreach ($md->group->thumbnail as $th) {
+                $image = (string) $th['url'];
+                if ($image !== '') { break; }
+            }
+        }
+        if ($image === '' && isset($md->content)) {
+            $best = ''; $bestW = -1;
+            foreach ($md->content as $mc) {
+                $medium = (string) $mc['medium'];
+                $type = (string) $mc['type'];
+                if ($medium === 'image' || strpos($type, 'image/') === 0) {
+                    $w = (int) $mc['width'];
+                    if ($w >= $bestW) { $bestW = $w; $best = (string) $mc['url']; }
+                }
+            }
+            $image = $best;
+        }
+        if ($image === '' && isset($node->enclosure)) {
+            foreach ($node->enclosure as $enc) {
+                if (strpos((string) $enc['type'], 'image/') === 0) { $image = (string) $enc['url']; break; }
+            }
+        }
+        /* Digging an image out of content:encoded is the expensive step, and a
+           1000-item feed only ever shows a handful. It is deferred until after
+           filtering and slicing — see the image backfill below. */
+        if ($image !== '') { $image = $absolutise($image, $url !== '' ? $url : $A['feedUrl']); }
+
+        /* author */
+        $author = '';
+        if (isset($dc->creator)) { $author = trim((string) $dc->creator); }
+        if ($author === '' && isset($it->author)) { $author = trim((string) $it->author); }
+        if ($author === '' && isset($node->author)) {
+            $author = $isAtom ? trim((string) $node->author->name) : trim((string) $node->author);
+        }
+
+        /* tags */
+        $tags = array();
+        foreach ($node->category as $c) {
+            $label = trim((string) $c);
+            if ($label === '') { $label = trim((string) $c['term']); }
+            if ($label !== '') { $tags[] = $label; }
+        }
+
+        $videoId = isset($yt->videoId) ? (string) $yt->videoId : '';
+        if ($videoId !== '' && $image === '') {
+            $image = 'https://i.ytimg.com/vi/' . $videoId . '/hqdefault.jpg';
+        }
+
+        $guid = $isAtom ? (string) $node->id : trim((string) $node->guid);
+        if ($guid === '') { $guid = $url !== '' ? $url : md5($title . $dateRaw); }
+
+        $result['items'][] = array(
+            'guid'        => $guid,
+            'title'       => $title,
+            'url'         => $url,
+            'ts'          => $ts,
+            'off'         => $tzOffset($dateRaw, $ts),
+            'summary'     => $summary,
+            'contentHtml' => $contentHtml,
+            'image'       => $image,
+            'author'      => $author,
+            'tags'        => $tags,
+            'audioUrl'    => $audioUrl,
+            'audioType'   => $audioType,
+            'audioBytes'  => $audioBytes,
+            'duration'    => isset($it->duration) ? $toSeconds((string) $it->duration) : 0,
+            'episode'     => isset($it->episode) ? trim((string) $it->episode) : '',
+            'season'      => isset($it->season) ? trim((string) $it->season) : '',
+            'explicit'    => isset($it->explicit) ? in_array(strtolower(trim((string) $it->explicit)), array('yes', 'true', 'explicit'), true) : false,
+            'videoId'     => $videoId
+        );
+    }
+
+    return $result;
+};
+
+/* ---------- run ---------- */
+
+$feedUrl = isset($A['feedUrl']) ? trim($A['feedUrl']) : '';
+$parsed = array('format' => 'unknown', 'channel' => array(), 'items' => array());
+
+if ($feedUrl === '') {
+    $antennaWarnings[] = 'No feed URL set.';
+} elseif (!preg_match('#^https?://#i', $feedUrl)) {
+    $antennaWarnings[] = 'Feed URL must start with http:// or https://.';
+} else {
+    /* Fetching uses host functions a hardened server may have switched off, and
+       on PHP 8 calling one throws. That must cost this component, not the rest
+       of the page, so it is caught the same way parsing is below. */
+    try {
+        $raw = $fetchFeed($feedUrl, (int) $A['cacheTtl']);
+    } catch (\Throwable $e) {
+        $raw = null;
+        $antennaWarnings[] = 'Fetching the feed failed (' . get_class($e) . ').';
+    }
+    if ($raw === null) {
+        $antennaWarnings[] = 'Could not load the feed.';
+    } else {
+        /* The feed is content nobody here controls, and an error raised while
+           parsing it must cost this component, never the page around it. The
+           JSON intake above already defuses the known cases; this catches the
+           rest. $parsed keeps the empty result it was given above, so the
+           fallback the author chose is what renders. A memory-limit fatal is
+           not catchable at all, which is why the fetch caps the body instead. */
+        try {
+            $parsed = $parseFeed($cleanRaw($raw));
+        } catch (\Throwable $e) {
+            $antennaWarnings[] = 'Feed could not be parsed (' . get_class($e) . ') - showing the fallback instead.';
+        }
+    }
+}
+
+$items = $parsed['items'];
+$totalFound = count($items);
+
+/* type resolution */
+$forced = $A['feedType'];
+foreach ($items as $k => $item) {
+    if ($forced === 'podcast') { $type = 'episode'; }
+    elseif ($forced === 'articles') { $type = 'article'; }
+    elseif ($forced === 'video') { $type = 'video'; }
+    elseif ($item['videoId'] !== '') { $type = 'video'; }
+    elseif ($item['audioUrl'] !== '' || $item['duration'] > 0 || $item['episode'] !== '') { $type = 'episode'; }
+    else { $type = 'article'; }
+    $items[$k]['type'] = $type;
+}
+
+/* filters */
+$inc = isset($A['include']) ? $A['include'] : array();
+$exc = isset($A['exclude']) ? $A['exclude'] : array();
+if (!empty($inc) || !empty($exc)) {
+    $kept = array();
+    foreach ($items as $item) {
+        $hay = $mbLower($item['title'] . ' ' . $toText($item['summary']));
+        if (!empty($inc)) {
+            $hit = false;
+            foreach ($inc as $needle) {
+                if ($needle !== '' && $mbPos($hay, $mbLower($needle)) !== false) { $hit = true; break; }
+            }
+            if (!$hit) { continue; }
+        }
+        $blocked = false;
+        foreach ($exc as $needle) {
+            if ($needle !== '' && $mbPos($hay, $mbLower($needle)) !== false) { $blocked = true; break; }
+        }
+        if ($blocked) { continue; }
+        $kept[] = $item;
+    }
+    $items = $kept;
+}
+
+/* sort - ties keep feed order. PHP's sort is only stable from 8.0, so on 7.x
+   undated items (all ts 0) would otherwise come out in an arbitrary order. */
+foreach ($items as $k => $item) { $items[$k]['_i'] = $k; }
+if ($A['sortOrder'] === 'newest') {
+    usort($items, function ($a, $b) { return ($b['ts'] <=> $a['ts']) ?: ($a['_i'] <=> $b['_i']); });
+} elseif ($A['sortOrder'] === 'oldest') {
+    usort($items, function ($a, $b) { return ($a['ts'] <=> $b['ts']) ?: ($a['_i'] <=> $b['_i']); });
+}
+
+$items = array_slice($items, (int) $A['startOffset'], (int) $A['itemLimit']);
+
+/* Image backfill — only for the handful of items that actually render. */
+if (!empty($A['showImage'])) {
+    foreach ($items as $k => $item) {
+        if ($item['image'] !== '') { continue; }
+        $src = $firstImageIn(
+            $item['contentHtml'] !== '' ? $item['contentHtml'] : $item['summary'],
+            (int) $A['minImageWidth']
+        );
+        if ($src !== '') {
+            $items[$k]['image'] = $absolutise($src, $item['url'] !== '' ? $item['url'] : $A['feedUrl']);
+        }
+    }
+}
+
+/* ---------- render ---------- */
+
+$renderPlayer = function ($item) use ($A, $esc, $cls, $safeUrl, $isRemote) {
+    $audio = $safeUrl($item['audioUrl']);
+    if ($A['playerStyle'] === 'none' || $audio === '') { return ''; }
+    $src = $esc($audio);
+
+    if ($A['playerStyle'] === 'native') {
+        return '<audio class="antenna-native mt-3 w-full" controls preload="' . $esc($A['preload']) . '" src="' . $src . '"></audio>';
+    }
+
+    $h = '<div class="antenna-player mt-3 flex flex-wrap items-center gap-3"'
+       . ' data-skip-back="' . (int) $A['skipBack'] . '"'
+       . ' data-skip-forward="' . (int) $A['skipForward'] . '">';
+    $h .= '<audio class="antenna-audio hidden" preload="' . $esc($A['preload']) . '" src="' . $src . '"></audio>';
+
+    if ($A['showSkip']) {
+        /* p-0.5 around a 20px icon makes a 24px target, the WCAG 2.2 minimum.
+           Padding rather than a bigger glyph, so nothing moves visually; the row
+           is items-center against a taller play button, so its height is
+           unchanged. Same on the forward and download controls below. */
+        $h .= '<button type="button" class="antenna-back inline-flex shrink-0 items-center justify-center p-0.5 ' . $cls('meta') . '" aria-label="Skip back ' . (int) $A['skipBack'] . ' seconds">'
+            . '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="h-5 w-5" aria-hidden="true">'
+            . '<path stroke-linecap="round" stroke-linejoin="round" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3" /></svg></button>';
+    }
+
+    $h .= '<button type="button" class="antenna-toggle inline-flex shrink-0 items-center justify-center rounded-full transition hover:opacity-90 ' . $cls('playBtn') . ' ' . $cls('accent') . ' ' . $cls('accentText') . '" aria-label="Play">'
+        . '<svg class="antenna-icon-play ml-0.5 h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">'
+        . '<path d="M8 5.14v13.72c0 .77.83 1.25 1.5.86l11-6.86a1 1 0 0 0 0-1.72l-11-6.86A1 1 0 0 0 8 5.14z" /></svg>'
+        . '<svg class="antenna-icon-pause hidden h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">'
+        . '<path d="M7 5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V5zm7 0a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1V5z" /></svg></button>';
+
+    if ($A['showSkip']) {
+        $h .= '<button type="button" class="antenna-fwd inline-flex shrink-0 items-center justify-center p-0.5 ' . $cls('meta') . '" aria-label="Skip forward ' . (int) $A['skipForward'] . ' seconds">'
+            . '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="h-5 w-5" aria-hidden="true">'
+            . '<path stroke-linecap="round" stroke-linejoin="round" d="m15 15 6-6m0 0-6-6m6 6H9a6 6 0 0 0 0 12h3" /></svg></button>';
+    }
+
+    /* min-w-[6rem] rather than min-w-24: the numeric min-width scale only exists
+       from Tailwind 3.4 on, and this component claims to work on v3 themes too.
+       The arbitrary value compiles identically on every version. */
+    $h .= '<div class="antenna-track relative min-w-[6rem] flex-1 cursor-pointer ' . $cls('trackH') . ' ' . $cls('trackRadius') . ' ' . $cls('track') . '"'
+        . ' role="slider" tabindex="0" aria-label="Seek" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">'
+        . '<div class="antenna-fill absolute left-0 top-0 h-full w-0 ' . $cls('trackRadius') . ' ' . $cls('fill') . '"></div></div>';
+
+    if ($A['showTime']) {
+        $h .= '<span class="antenna-time shrink-0 tabular-nums ' . $cls('meta') . '">0:00 / 0:00</span>';
+    }
+    if ($A['showSpeed']) {
+        $h .= '<button type="button" class="antenna-speed shrink-0 rounded-[0.25rem] px-2 py-1 tabular-nums ' . $cls('badge') . '" aria-label="Playback speed">1&times;</button>';
+    }
+    if ($A['showDownload']) {
+        /* $audio, not $src: the origin test wants the address as it was parsed,
+           not the entity-encoded copy that goes into the attribute. */
+        $dlAttrs = $isRemote($audio)
+            ? ' target="_blank" rel="noopener" aria-label="Open audio in a new tab"'
+            : ' download aria-label="Download audio"';
+        $h .= '<a class="antenna-download inline-flex shrink-0 items-center justify-center p-0.5 transition hover:opacity-70 ' . $cls('meta') . '" href="' . $src . '"' . $dlAttrs . '>'
+            . '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="h-5 w-5" aria-hidden="true">'
+            . '<path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg></a>';
+    }
+
+    return $h . '</div>';
+};
+
+$renderImage = function ($item, $channelImage) use ($A, $esc, $cls, $safeUrl, $localUrl) {
+    if (!$A['showImage']) { return ''; }
+    /* The two feed-derived candidates go through the untrusted-content allowlist.
+       The author's own fallback goes through the one that keeps relative paths,
+       which is what a project resource actually is. */
+    $src = $safeUrl($item['image']);
+    if ($src === '') { $src = $safeUrl($channelImage); }
+    if ($src === '') { $src = $localUrl($A['fallbackImage']); }
+    if ($src === '') { return ''; }
+    if ($A['forceHttps']) { $src = preg_replace('#^http://#i', 'https://', $src); }
+
+    /* List layout keeps its own fixed thumbnail width. Everywhere else the width
+       is a per-breakpoint fraction of the card, centred so a narrowed image sits
+       under the middle of the text rather than hugging one edge. mx-auto is a
+       no-op at full width, so the default renders exactly as it did before. */
+    $sizing = $A['layoutMode'] === 'list'
+        ? $cls('listImgW') . ' shrink-0'
+        : $cls('imgW') . ' mx-auto';
+    $loading = $A['lazyLoad'] ? ' loading="lazy" decoding="async"' : ' fetchpriority="high"';
+    $alt = $item['title'] !== '' ? $esc($item['title']) : 'Feed artwork';
+
+    $h = '<div class="antenna-art relative overflow-hidden ' . $sizing . ' '
+        . $cls('imgAspect') . ' ' . $cls('imgRadius') . ' ' . $cls('imgShadow') . '">';
+
+    /* No inline onerror here - broken artwork is hidden by the delegated listener
+       portalled at the top of this file, which survives a CSP that allows scripts
+       by nonce or hash but still blocks event-handler attributes. */
+    $h .= '<img src="' . $esc($src) . '" alt="' . $alt . '"' . $loading
+        . ' class="h-full w-full ' . $cls('imgFit') . ' ' . $cls('imgPos') . ' '
+        . $cls('imgHover') . ' ' . $cls('transition') . '" />';
+
+    if (!empty($A['showImageOverlay'])) {
+        $h .= '<span class="pointer-events-none absolute inset-0 ' . $cls('overlay') . '" aria-hidden="true"></span>';
+    }
+
+    if (!empty($A['showPlayOverlay']) && $item['type'] !== 'article') {
+        $h .= '<span class="pointer-events-none absolute inset-0 flex items-center justify-center" aria-hidden="true">'
+            . '<span class="inline-flex items-center justify-center rounded-full ' . $cls('playBtn') . ' '
+            . $cls('accent') . ' ' . $cls('accentText') . '">'
+            . '<svg class="ml-0.5 h-1/2 w-1/2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">'
+            . '<path d="M8 5.14v13.72c0 .77.83 1.25 1.5.86l11-6.86a1 1 0 0 0 0-1.72l-11-6.86A1 1 0 0 0 8 5.14z" />'
+            . '</svg></span></span>';
+    }
+
+    return $h . '</div>';
+};
+
+$renderCard = function ($item, $channelImage) use ($A, $esc, $cls, $fmtDate, $fmtDuration, $toText, $applyStrips, $renderPlayer, $renderImage, $safeUrl) {
+    $isCompact = ($A['layoutMode'] === 'compact');
+    $isList = ($A['layoutMode'] === 'list');
+
+    $link = $safeUrl($item['url']);
+    $hasLink = ($link !== '' && $A['linkTarget'] !== 'none');
+    $target = $A['linkTarget'] === 'new' ? ' target="_blank" rel="' . $esc($A['linkRel']) . '"' : '';
+
+    $openA = $hasLink ? '<a href="' . $esc($link) . '"' . $target . ' class="antenna-link">' : '';
+    $closeA = $hasLink ? '</a>' : '';
+
+    $h = '<article class="antenna-card group relative overflow-hidden '
+        . $cls('cardBox') . ' ' . $cls('cardColor') . ' ' . $cls('cardHover') . ' '
+        . $cls('borderHover') . ' ' . $cls('transition') . ' ' . $cls('align') . ' '
+        . $esc($A['cardCssClasses']) . '">';
+
+    $imgHtml = $isCompact ? '' : $renderImage($item, $channelImage);
+    $rowClasses = 'flex flex-col ' . $cls('cardGap');
+    if ($isList && $imgHtml !== '') {
+        $rowClasses = ($A['imagePosition'] === 'right' ? 'flex flex-row-reverse' : 'flex')
+            . ' items-start ' . $cls('cardGap');
+    }
+    $h .= '<div class="' . $rowClasses . '">';
+
+    if ($imgHtml !== '') {
+        $h .= $hasLink ? '<a href="' . $esc($link) . '"' . $target . ' class="block shrink-0" tabindex="-1" aria-hidden="true">' . $imgHtml . '</a>' : $imgHtml;
+    }
+
+    $h .= '<div class="min-w-0 flex-1">';
+
+    /* meta row */
+    $meta = array();
+    if ($item['type'] !== 'article' && $A['showEpisodeNumber'] && $item['episode'] !== '') {
+        $meta[] = '<span class="rounded-[0.25rem] px-1.5 py-0.5 ' . $cls('badge') . '">'
+            . $esc(trim($A['episodePrefix'] . ' ' . $item['episode'])) . '</span>';
+    }
+    if ($item['type'] !== 'article' && $A['showSeason'] && $item['season'] !== '') {
+        $meta[] = '<span class="rounded-[0.25rem] px-1.5 py-0.5 ' . $cls('badge') . '">Season ' . $esc($item['season']) . '</span>';
+    }
+    if ($A['showDate'] && $item['ts'] > 0) {
+        $meta[] = '<time datetime="' . date('c', $item['ts']) . '">' . $esc($fmtDate($item['ts'], $A['dateFormat'], isset($item['off']) ? $item['off'] : null)) . '</time>';
+    }
+    if ($item['type'] !== 'article' && $A['showDuration'] && $item['duration'] > 0) {
+        $meta[] = '<span>' . $esc($fmtDuration($item['duration'], $A['durationFormat'])) . '</span>';
+    }
+    if ($item['type'] === 'article' && $A['showAuthor'] && $item['author'] !== '') {
+        $meta[] = '<span>' . $esc($item['author']) . '</span>';
+    }
+    $bodyText = $applyStrips($toText($item['summary']));
+    if ($item['type'] === 'article' && $A['showReadingTime']) {
+        $wordSrc = $toText($item['contentHtml'] !== '' ? $item['contentHtml'] : $item['summary']);
+        /* Same invalid-UTF-8 caveat as the whitespace collapse helper above: /u
+           returns false rather than a count, which would drop the reading time
+           without saying why. */
+        $words = preg_match_all('/\S+/u', $wordSrc);
+        if ($words === false) { $words = preg_match_all('/\S+/', $wordSrc); }
+        if ($words > 0) {
+            $mins = max(1, (int) round($words / $A['wordsPerMinute']));
+            $meta[] = '<span>' . $mins . ' min read</span>';
+        }
+    }
+    if ($item['type'] !== 'article' && $A['showExplicit'] && $item['explicit']) {
+        $meta[] = '<span class="rounded-[0.25rem] px-1.5 py-0.5 ' . $cls('badge') . '">Explicit</span>';
+    }
+    if (!empty($meta)) {
+        $h .= '<div class="mb-1 flex flex-wrap items-center gap-2 ' . $cls('meta') . '">' . implode('', $meta) . '</div>';
+    }
+
+    /* title */
+    if ($A['showTitle'] && $item['title'] !== '') {
+        $tag = $A['headingLevel'];
+        $h .= '<' . $tag . ' class="mb-1 ' . $cls('titleClamp') . ' ' . $cls('title') . ' ' . $cls('transition') . '">'
+            . $openA . $esc($item['title']) . $closeA . '</' . $tag . '>';
+    }
+
+    /* description */
+    if (!$isCompact && $A['showDescription'] && $bodyText !== '') {
+        $h .= '<p class="' . $cls('bodyClamp') . ' ' . $cls('body') . '">' . $esc($bodyText) . '</p>';
+    }
+
+    /* tags */
+    if ($item['type'] === 'article' && $A['showTags'] && !empty($item['tags'])) {
+        $h .= '<div class="mt-2 flex flex-wrap gap-1.5">';
+        $shown = array_slice($item['tags'], 0, (int) $A['maxTags']);
+        foreach ($shown as $t) {
+            $h .= '<span class="rounded-[0.25rem] px-1.5 py-0.5 ' . $cls('meta') . ' ' . $cls('badge') . '">' . $esc($t) . '</span>';
+        }
+        $extra = count($item['tags']) - count($shown);
+        if ($extra > 0) {
+            $h .= '<span class="' . $cls('meta') . '">+' . $extra . ' more</span>';
+        }
+        $h .= '</div>';
+    }
+
+    /* player */
+    if (!$isCompact && $item['type'] === 'episode') {
+        $h .= $renderPlayer($item);
+    }
+
+    /* read more */
+    if ($A['showReadMore'] && $hasLink) {
+        $h .= '<p class="mt-2"><a href="' . $esc($link) . '"' . $target . ' class="' . $cls('meta') . ' underline underline-offset-2 hover:no-underline">'
+            . $esc($A['readMoreText']) . '</a></p>';
+    }
+
+    $h .= '</div></div></article>';
+    return $h;
+};
+
+/* structured data */
+$buildJsonLd = function ($items, $channel) use ($A, $safeUrl) {
+    if (!$A['enableJsonLd'] || empty($items)) { return ''; }
+    $graph = array();
+    foreach ($items as $item) {
+        if ($item['title'] === '') { continue; }
+        if ($item['type'] === 'episode') {
+            $node = array(
+                '@type' => 'PodcastEpisode',
+                'name'  => $item['title']
+            );
+            $au = $safeUrl($item['audioUrl']);
+            if ($au !== '') {
+                $node['associatedMedia'] = array('@type' => 'MediaObject', 'contentUrl' => $au);
+            }
+            if ($item['episode'] !== '') { $node['episodeNumber'] = $item['episode']; }
+            if ($item['duration'] > 0) { $node['timeRequired'] = 'PT' . (int) $item['duration'] . 'S'; }
+            if (!empty($channel['title'])) {
+                $node['partOfSeries'] = array('@type' => 'PodcastSeries', 'name' => $channel['title']);
+            }
+        } elseif ($item['type'] === 'video') {
+            $node = array('@type' => 'VideoObject', 'name' => $item['title']);
+            $ti = $safeUrl($item['image']);
+            if ($ti !== '') { $node['thumbnailUrl'] = $ti; }
+            if ($item['ts'] > 0) { $node['uploadDate'] = date('c', $item['ts']); }
+        } else {
+            $node = array('@type' => 'BlogPosting', 'headline' => $item['title']);
+            if ($item['author'] !== '') { $node['author'] = array('@type' => 'Person', 'name' => $item['author']); }
+            if ($item['ts'] > 0) { $node['datePublished'] = date('c', $item['ts']); }
+        }
+        $iu = $safeUrl($item['url']);
+        if ($iu !== '') { $node['url'] = $iu; $node['@id'] = $iu; }
+        $ii = $safeUrl($item['image']);
+        if ($ii !== '' && !isset($node['thumbnailUrl'])) { $node['image'] = $ii; }
+        $graph[] = $node;
+    }
+    if (empty($graph)) { return ''; }
+    $payload = json_encode(
+        array('@context' => 'https://schema.org', '@graph' => $graph),
+        JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
+    );
+    /* Stop feed content from terminating the script element it sits in.
+       These are JSON unicode escapes, valid inside a JSON string value. */
+    $payload = str_replace(
+        array('<', '>', '&'),
+        array('\\u003C', '\\u003E', '\\u0026'),
+        $payload
+    );
+    /* Split the tags so this file never contains a literal closing script tag. */
+    return '<scr' . 'ipt type="application/ld+json">' . $payload . '</scr' . 'ipt>';
+};
+
+/* assemble */
+$channelImage = isset($parsed['channel']['image']) ? $parsed['channel']['image'] : '';
+
+if (empty($items)) {
+    if ($A['fallbackBehavior'] === 'message' && $A['fallbackMessage'] !== '') {
+        $antennaOut .= '<p class="' . $cls('body') . '">' . $esc($A['fallbackMessage']) . '</p>';
+    }
+} else {
+    $wrapClass = $cls('wrapFlex');
+    if ($A['layoutMode'] === 'grid') { $wrapClass = $cls('wrapGrid'); }
+    if (($A['layoutMode'] === 'list' || $A['layoutMode'] === 'compact') && $A['showDivider']) {
+        $wrapClass .= ' divide-y ' . $cls('divide');
+    }
+
+    $antennaOut .= '<div class="' . $wrapClass . '">';
+    $first = true;
+    foreach ($items as $item) {
+        if ($A['layoutMode'] === 'featured' && $first) {
+            $antennaOut .= '<div class="antenna-hero">' . $renderCard($item, $channelImage) . '</div>';
+        } else {
+            $antennaOut .= $renderCard($item, $channelImage);
+        }
+        $first = false;
+    }
+    $antennaOut .= '</div>';
+
+    $antennaOut .= $buildJsonLd($items, $parsed['channel']);
+}
+
+if (!empty($A['showCredit'])) {
+    $antennaOut .= '<p class="mt-4 text-center ' . $cls('meta') . '">Powered by Antenna</p>';
+}
+
+if (!empty($A['showDiagnostics'])) {
+    /* This panel renders on the live page, so the absolute cache path and the
+       PHP version would be readable by any visitor if the switch were left on.
+       Both are only useful while developing, so they are shown in preview and
+       reduced to a yes/no in public. The feed address goes the same way: a
+       private podcast feed carries its token in the address, so the public
+       panel names only the host. */
+    $isPreview = !empty($A['isPreview']);
+    $shownFeed = $feedUrl;
+    if (!$isPreview && $feedUrl !== '') {
+        $fp = @parse_url($feedUrl);
+        $shownFeed = (is_array($fp) && isset($fp['scheme'], $fp['host']))
+            ? $fp['scheme'] . '://' . $fp['host'] . '/…'
+            : '(set)';
+    }
+    $cacheState = $antennaCacheDir === '(not created)'
+        ? 'not used'
+        : (is_dir($antennaCacheDir) && is_writable($antennaCacheDir) ? 'writable' : 'NOT writable');
+
+    $rows = array(
+        'Feed URL'        => $feedUrl !== '' ? $shownFeed : '(not set)',
+        'Detected format' => $parsed['format'],
+        'Channel title'   => isset($parsed['channel']['title']) ? $parsed['channel']['title'] : '(none)',
+        'Items in feed'   => (string) $totalFound,
+        'Items shown'     => (string) count($items),
+        'Cache'           => ((int) $A['cacheTtl']) . ' min, ' . ($isPreview ? 'dir ' . $antennaCacheDir : $cacheState),
+        'cURL available'  => (function_exists('curl_init') && function_exists('curl_exec')) ? 'yes' : 'no'
+    );
+    if ($isPreview) { $rows['PHP version'] = PHP_VERSION; }
+    if (!empty($items)) {
+        $missing = array();
+        $probe = array('image' => 'artwork', 'audioUrl' => 'audio', 'ts' => 'date', 'author' => 'author', 'episode' => 'episode number');
+        foreach ($probe as $key => $label) {
+            $blank = 0;
+            foreach ($items as $i) { if (empty($i[$key])) { $blank++; } }
+            if ($blank > 0) { $missing[] = $label . ' (' . $blank . '/' . count($items) . ')'; }
+        }
+        $rows['Missing fields'] = empty($missing) ? 'none' : implode(', ', $missing);
+        $types = array();
+        foreach ($items as $i) { $types[$i['type']] = (isset($types[$i['type']]) ? $types[$i['type']] : 0) + 1; }
+        $typeStr = array();
+        foreach ($types as $t => $n) { $typeStr[] = $t . ' x' . $n; }
+        $rows['Item types'] = implode(', ', $typeStr);
+    }
+
+    $d = '<div class="antenna-diagnostics mt-6 rounded-lg border border-amber-400 bg-amber-50 p-4 text-xs text-amber-900">';
+    $d .= '<p class="mb-2 font-semibold">Antenna diagnostics &mdash; turn this off before launch</p><dl class="grid gap-1">';
+    foreach ($rows as $k => $v) {
+        $d .= '<div class="flex gap-2"><dt class="w-40 shrink-0 font-medium">' . $esc($k) . '</dt><dd class="min-w-0 break-all">' . $esc($v) . '</dd></div>';
+    }
+    $d .= '</dl>';
+    if (!empty($antennaWarnings)) {
+        $d .= '<p class="mt-2 font-semibold">Warnings</p><ul class="list-disc pl-5">';
+        foreach ($antennaWarnings as $w) { $d .= '<li>' . $esc($w) . '</li>'; }
+        $d .= '</ul>';
+    }
+    $antennaOut .= $d . '</div>';
+}
+
+return $antennaOut;
+
+}, $antennaCfgJson, $antennaCssJson);
+
+?></script><?php echo $antennaRendered; ?>
+@endraw
+
+@endif

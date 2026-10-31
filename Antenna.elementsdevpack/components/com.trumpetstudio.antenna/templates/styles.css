@@ -1,0 +1,70 @@
+/* Antenna — MIT License.
+   Almost everything is Tailwind composed in hooks and PHP. This file only
+   covers what utilities cannot reach.
+   Note: no at-rules here on purpose — the Elements language reserves "@".
+   Reduced motion is handled by the motion-safe: variants set in hooks.js.
+   The play button is sized by the Button Size control, which emits a w-/h- pair
+   rather than the size-* shorthand: size-* only exists from Tailwind 3.4 on, and
+   this component supports v3 themes — the same reason the seek bar uses an
+   arbitrary min-width below. The skip and download buttons keep their bare 20px
+   icons and reach the 24px minimum touch target through p-0.5 padding instead,
+   so the target grows without the glyph changing size. */
+
+.antenna .antenna-track:focus-visible,
+.antenna .antenna-toggle:focus-visible,
+.antenna .antenna-speed:focus-visible,
+.antenna .antenna-back:focus-visible,
+.antenna .antenna-fwd:focus-visible,
+.antenna .antenna-download:focus-visible,
+.antenna .antenna-link:focus-visible {
+    outline: 2px solid currentColor;
+    outline-offset: 2px;
+    border-radius: 0.25rem;
+}
+
+/* The seek bar is a thin target; widen the hit area without moving the visual. */
+.antenna .antenna-track {
+    position: relative;
+    touch-action: none;
+}
+
+.antenna .antenna-track::before {
+    content: "";
+    position: absolute;
+    inset: -0.625rem 0;
+}
+
+/* Native player, when chosen, should still fill the card. */
+.antenna .antenna-native {
+    width: 100%;
+    display: block;
+}
+
+/* Keep a clamped title from clipping descenders. */
+.antenna .antenna-card :is(h2, h3, h4) {
+    overflow-wrap: anywhere;
+}
+
+/* Diagnostics panel stays legible whatever the theme does. */
+.antenna .antenna-diagnostics {
+    color-scheme: light;
+}
+
+/* Audio that failed to load. script.js also sets the button disabled, so this
+   is the visual half only: dimmed, with a not-allowed pointer. No
+   pointer-events rule on purpose — disabled already blocks the click, and
+   removing pointer events would take the cursor with it.
+   These two declarations used to be a pair of Tailwind utilities added from
+   script.js. Their names appeared nowhere else in the pack, and a class named
+   only inside the portal'd script was not compiled before Elements 3.0.11, so
+   on any earlier build a dead player still looked live. Owning the rule here
+   makes the state independent of the author's Elements version. The two names
+   are deliberately not spelled out anywhere in this file: the JIT scans
+   comments as well as markup and would simply compile them again.
+   opacity is important because a hover opacity utility sits on this same
+   button and matches it at equal specificity, which would otherwise leave the
+   winner up to stylesheet order. */
+.antenna .antenna-unavailable {
+    opacity: 0.4 !important;
+    cursor: not-allowed;
+}

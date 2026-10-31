@@ -1,0 +1,312 @@
+@if(needsPlayerScript)
+/**
+ * Antenna player — MIT License.
+ * Vanilla, idempotent, and safe to include more than once per page.
+ */
+window.antennaPlayer = window.antennaPlayer || (function () {
+    var SPEEDS = [1, 1.25, 1.5, 1.75, 2, 0.75];
+
+    /* One registry for every audio component on the page rather than one per
+       pack. Antenna, the CMS Audio Player and WindyTown each kept a private list,
+       so a page carrying two of them had two registries that could not see each
+       other and both tracks played at once. A plain array on window under a
+       neutral name lets any of them join without taking a dependency on the
+       others being present, or on load order. */
+    function bus() {
+        window.__rwAudioBus = window.__rwAudioBus || [];
+        return window.__rwAudioBus;
+    }
+
+    function busAdd(el) {
+        var list = bus();
+        if (list.indexOf(el) === -1) { list.push(el); }
+    }
+
+    function busPauseOthers(me) {
+        /* Drop players whose nodes the editor canvas or the CMS has re-rendered
+           away. Without this the list only ever grows, and every play pauses a
+           longer tail of detached elements. */
+        var list = bus().filter(function (a) {
+            return a === me || a.isConnected !== false;
+        });
+        window.__rwAudioBus = list;
+        list.forEach(function (a) { if (a !== me) { a.pause(); } });
+    }
+
+    function fmt(sec) {
+        if (!isFinite(sec) || isNaN(sec) || sec < 0) { return '0:00'; }
+        sec = Math.floor(sec);
+        var h = Math.floor(sec / 3600);
+        var m = Math.floor((sec % 3600) / 60);
+        var s = sec % 60;
+        var mm = h > 0 && m < 10 ? '0' + m : String(m);
+        var ss = s < 10 ? '0' + s : String(s);
+        return h > 0 ? h + ':' + mm + ':' + ss : mm + ':' + ss;
+    }
+
+    function init(root) {
+        if (root.dataset.antennaReady === '1') { return; }
+        root.dataset.antennaReady = '1';
+
+        var audio = root.querySelector('.antenna-audio');
+        if (!audio) { return; }
+
+        var toggle = root.querySelector('.antenna-toggle');
+        var playIcon = root.querySelector('.antenna-icon-play');
+        var pauseIcon = root.querySelector('.antenna-icon-pause');
+        var track = root.querySelector('.antenna-track');
+        var fill = root.querySelector('.antenna-fill');
+        var timeEl = root.querySelector('.antenna-time');
+        var back = root.querySelector('.antenna-back');
+        var fwd = root.querySelector('.antenna-fwd');
+        var speedBtn = root.querySelector('.antenna-speed');
+
+        var backBy = parseInt(root.dataset.skipBack, 10) || 15;
+        var fwdBy = parseInt(root.dataset.skipForward, 10) || 30;
+        var speedIndex = 0;
+        /* Set once the source fails to load, and never cleared: the button is
+           disabled for good from then on. */
+        var dead = false;
+
+        busAdd(audio);
+
+        function setIcons(playing) {
+            if (playIcon) { playIcon.classList.toggle('hidden', playing); }
+            if (pauseIcon) { pauseIcon.classList.toggle('hidden', !playing); }
+            /* A dead player keeps its "unavailable" name. With preload="none" a
+               failed first play fires error and then pause, and the pause
+               handler used to relabel a disabled button "Play" straight after
+               the error handler had said it was unavailable. */
+            if (toggle && !dead) { toggle.setAttribute('aria-label', playing ? 'Pause' : 'Play'); }
+        }
+
+        function update() {
+            var d = audio.duration;
+            var c = audio.currentTime;
+            /* A live stream has no length. It read "0:37 / 0:00", and a screen
+               reader heard "0:37 of 0:00"; the position alone is the truth. */
+            var live = d === Infinity;
+            var pct = (isFinite(d) && d > 0) ? (c / d) * 100 : 0;
+            if (fill) { fill.style.width = pct + '%'; }
+            if (track) {
+                track.setAttribute('aria-valuenow', Math.round(pct));
+                track.setAttribute('aria-valuetext', live ? fmt(c) : fmt(c) + ' of ' + fmt(d));
+            }
+            if (timeEl) { timeEl.textContent = live ? fmt(c) : fmt(c) + ' / ' + fmt(d); }
+        }
+
+        function play() {
+            busPauseOthers(audio);
+            var p = audio.play();
+            if (p && typeof p.catch === 'function') { p.catch(function () { /* autoplay blocked */ }); }
+        }
+
+        if (toggle) {
+            toggle.addEventListener('click', function () {
+                if (audio.paused) { play(); } else { audio.pause(); }
+            });
+        }
+
+        /* Every seek goes through here, in all four players. A server that
+           ignores Range requests hands Chromium a file it treats as a stream:
+           seekable stays [0, 0] however much has arrived, any time set is
+           clamped to 0, and every skip, click on the bar or arrow key restarted
+           the episode. Such a seek is now refused, which keeps the listener's
+           place. A live stream is held to what has arrived: a time past that
+           left the player seeking, silent, until the broadcast caught up. */
+        function goTo(t) {
+            /* A source that failed has nothing to seek in: the time label
+               went on counting skips ("0:20 / 0:00") under a disabled button. */
+            if (dead) { return; }
+            var s = audio.seekable;
+            if (t > 0 && s && s.length && s.end(s.length - 1) === 0) { return; }
+            if (audio.duration === Infinity) {
+                var b = audio.buffered;
+                if (!b || !b.length) { return; }
+                t = Math.min(t, b.end(b.length - 1));
+            }
+            audio.currentTime = t;
+        }
+
+        if (back) {
+            back.addEventListener('click', function () {
+                goTo(Math.max(0, audio.currentTime - backBy));
+            });
+        }
+
+        if (fwd) {
+            fwd.addEventListener('click', function () {
+                var d = isFinite(audio.duration) ? audio.duration : audio.currentTime + fwdBy;
+                goTo(Math.min(d, audio.currentTime + fwdBy));
+            });
+        }
+
+        if (speedBtn) {
+            speedBtn.addEventListener('click', function () {
+                speedIndex = (speedIndex + 1) % SPEEDS.length;
+                var rate = SPEEDS[speedIndex];
+                /* Both, because load() resets playbackRate to the default one.
+                   Seeking before the metadata has arrived calls load(), and the
+                   button went on reading 1.5x over audio playing at 1x. */
+                audio.defaultPlaybackRate = rate;
+                audio.playbackRate = rate;
+                speedBtn.textContent = (rate === 1 ? '1' : String(rate)) + '×';
+                speedBtn.setAttribute('aria-label', 'Playback speed ' + rate + ' times');
+            });
+        }
+
+        if (track) {
+            var scrubbing = false;
+
+            function seekTo(clientX) {
+                if (dead) { return; }
+                var rect = track.getBoundingClientRect();
+                if (!rect.width) { return; }
+                var pct = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
+                if (isFinite(audio.duration) && audio.duration > 0) {
+                    goTo(pct * audio.duration);
+                    update();
+                    return;
+                }
+                /* Infinity is not "not loaded yet": it is a live stream, loaded
+                   and unbounded, with no length to take a fraction of. load()
+                   would stop it playing, and the deferred assignment below would
+                   throw on a non-finite time. */
+                if (audio.duration === Infinity) { return; }
+                // preload="none": metadata is not there yet, so load then seek.
+                audio.addEventListener('loadedmetadata', function once() {
+                    audio.removeEventListener('loadedmetadata', once);
+                    var d = audio.duration;
+                    if (isFinite(d) && d > 0) { goTo(pct * d); }
+                    update();
+                });
+                /* Only when nothing is already on its way. A Play still loading
+                   is fetching the metadata this waits for, and load() would
+                   abort it: playback stopped, with no pause event to put the
+                   button back to Play. A scrub would restart the request on
+                   every pointer move. */
+                if (audio.networkState !== audio.NETWORK_LOADING) { audio.load(); }
+            }
+
+            track.addEventListener('pointerdown', function (e) {
+                scrubbing = true;
+                /* Feature-tested and wrapped: setPointerCapture throws
+                   NotFoundError for a pointer id that is no longer active, which
+                   would abort this handler before the seek below ever ran. */
+                if (track.setPointerCapture) {
+                    try { track.setPointerCapture(e.pointerId); } catch (err) { /* not capturable */ }
+                }
+                seekTo(e.clientX);
+            });
+            track.addEventListener('pointermove', function (e) {
+                if (scrubbing) { seekTo(e.clientX); }
+            });
+            track.addEventListener('pointerup', function () { scrubbing = false; });
+            track.addEventListener('pointercancel', function () { scrubbing = false; });
+
+            /* The keys a role="slider" is expected to answer to: Right and Up
+               forward, Left and Down back, Home and End to either end. Each one
+               handled is kept from the page, or Up and Down scroll it and End
+               jumps to the bottom. */
+            track.addEventListener('keydown', function (e) {
+                if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    goTo(Math.min(audio.duration || 0, audio.currentTime + 5));
+                } else if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    goTo(Math.max(0, audio.currentTime - 5));
+                } else if (e.key === 'Home') {
+                    e.preventDefault();
+                    audio.currentTime = 0;
+                } else if (e.key === 'End') {
+                    e.preventDefault();
+                    if (isFinite(audio.duration) && audio.duration > 0) { goTo(audio.duration); }
+                } else if (e.key === ' ' || e.key === 'Enter') {
+                    e.preventDefault();
+                    if (audio.paused) { play(); } else { audio.pause(); }
+                }
+            });
+        }
+
+        audio.addEventListener('play', function () { setIcons(true); });
+        audio.addEventListener('pause', function () { setIcons(false); });
+        audio.addEventListener('ended', function () {
+            setIcons(false);
+            audio.currentTime = 0;
+            update();
+        });
+        audio.addEventListener('timeupdate', update);
+        audio.addEventListener('loadedmetadata', update);
+        audio.addEventListener('durationchange', update);
+        audio.addEventListener('error', function () {
+            dead = true;
+            if (toggle) {
+                toggle.disabled = true;
+                toggle.classList.add('antenna-unavailable');
+                toggle.setAttribute('aria-label', 'Audio unavailable');
+            }
+            /* The bar and the skip buttons can do nothing either, so they stop
+               offering to: under "Audio unavailable" a screen reader still
+               announced an operable slider and working skip buttons. */
+            if (track) { track.setAttribute('aria-disabled', 'true'); track.tabIndex = -1; }
+            if (back) back.disabled = true;
+            if (fwd) fwd.disabled = true;
+        });
+
+        update();
+    }
+
+    var SELECTOR = '.antenna-player';
+
+    function initAll() {
+        var nodes = document.querySelectorAll(SELECTOR);
+        for (var i = 0; i < nodes.length; i++) { init(nodes[i]); }
+    }
+
+    // Arm only what just arrived, rather than re-querying the whole page. init is
+    // idempotent (it stamps antennaReady), so anything already wired is skipped.
+    function initWithin(node) {
+        if (!node || node.nodeType !== 1) { return; }
+        if (node.matches && node.matches(SELECTOR)) { init(node); }
+        if (node.querySelectorAll) {
+            var found = node.querySelectorAll(SELECTOR);
+            for (var i = 0; i < found.length; i++) { init(found[i]); }
+        }
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initAll);
+    } else {
+        initAll();
+    }
+
+    // Re-scan markup that appears after the one-shot pass above. This runs on
+    // published pages too, and deliberately so.
+    //
+    // It was gated to the edit canvas until now, on the reasoning that a
+    // published page never re-renders this markup. That is false. The CMS Load
+    // More button asks for the next batch of collection items and appends them
+    // in place, so the first batch of players worked and every later one arrived
+    // dead — a transport that does nothing, artwork stuck on its placeholder. A
+    // podcast archive is exactly a collection plus Load More, and an author whose
+    // test collection fits on one page never sees it. The same applies to any
+    // container that renders late: a modal, a tab panel, a slider.
+    //
+    // The original objection was cost, and it was a fair one: the old shape ran a
+    // document-wide query one frame after any mutation. Walking only the added
+    // nodes keeps the work proportional to what actually changed, which is what
+    // makes it cheap enough to leave on. window.antennaPlayer.initAll() remains
+    // available for markup injected by something this cannot see.
+    if (window.MutationObserver) {
+        var mo = new MutationObserver(function (records) {
+            for (var i = 0; i < records.length; i++) {
+                var added = records[i].addedNodes;
+                for (var j = 0; j < added.length; j++) { initWithin(added[j]); }
+            }
+        });
+        mo.observe(document.body, { childList: true, subtree: true });
+    }
+
+    return { initAll: initAll };
+})();
+@endif

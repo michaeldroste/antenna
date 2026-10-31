@@ -1,0 +1,10 @@
+{
+  "name": "Antenna",
+  "identifier": "com.trumpetstudio.antennapack",
+  "author": "Michael Droste",
+  "version": 2,
+  "build": 33,
+  "categories": [
+    "components"
+  ]
+}

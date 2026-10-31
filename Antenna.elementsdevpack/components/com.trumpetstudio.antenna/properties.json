@@ -1,0 +1,2553 @@
+{
+  "groups": [
+    {
+      "title": "Feed",
+      "icon": "antenna.radiowaves.left.and.right",
+      "properties": [
+        {
+          "title": "Feed URL",
+          "id": "feedUrl",
+          "responsive": false,
+          "info": "RSS 2.0, Atom, JSON Feed, or a YouTube channel feed. Paste the feed address, not the website address.",
+          "ai": {
+            "name": "feedUrl",
+            "description": "The address of the RSS, Atom, JSON Feed or YouTube feed to display."
+          },
+          "text": {
+            "default": "",
+            "placeholder": "https://example.com/feed.xml",
+            "subtitle": "This page must be published as .php."
+          }
+        },
+        {
+          "title": "Feed Type",
+          "id": "feedType",
+          "responsive": false,
+          "info": "Auto detects podcasts, videos and articles from the feed itself. Force a type to hide the other card style's settings.",
+          "ai": {
+            "name": "feedType",
+            "description": "How feed items are rendered: auto-detect, podcast episodes, articles, or videos.",
+            "values": [
+              "auto",
+              "podcast",
+              "articles",
+              "video"
+            ]
+          },
+          "segmented": {
+            "default": "auto",
+            "items": [
+              {
+                "value": "auto",
+                "title": "Auto"
+              },
+              {
+                "value": "podcast",
+                "title": "Podcast"
+              },
+              {
+                "value": "articles",
+                "title": "Articles"
+              },
+              {
+                "value": "video",
+                "title": "Video"
+              }
+            ]
+          }
+        },
+        {
+          "title": "Number of Items",
+          "id": "itemLimit",
+          "responsive": false,
+          "ai": {
+            "name": "itemLimit",
+            "description": "How many feed items to show, 1-100."
+          },
+          "number": {
+            "default": 10,
+            "min": 1,
+            "max": 100,
+            "step": 1,
+            "round": true
+          }
+        },
+        {
+          "title": "Skip First",
+          "id": "startOffset",
+          "ai": {
+            "name": "startOffset",
+            "description": "How many items to skip from the top of the feed before the first one shown. Pair with Number of Items to build a latest-plus-archive layout."
+          },
+          "responsive": false,
+          "info": "Skip this many items before showing any. Use two components with different offsets to build a 'latest' plus 'more episodes' layout.",
+          "number": {
+            "default": 0,
+            "min": 0,
+            "max": 100,
+            "step": 1,
+            "round": true
+          }
+        },
+        {
+          "title": "Sort",
+          "id": "sortOrder",
+          "ai": {
+            "name": "sortOrder",
+            "description": "Order items are shown in: newest first, oldest first, or the order the feed itself lists them."
+          },
+          "responsive": false,
+          "select": {
+            "default": "newest",
+            "items": [
+              {
+                "value": "newest",
+                "title": "Newest first"
+              },
+              {
+                "value": "oldest",
+                "title": "Oldest first"
+              },
+              {
+                "value": "feed",
+                "title": "Feed order"
+              }
+            ]
+          }
+        },
+        {
+          "title": "Refresh Every",
+          "id": "cacheTtl",
+          "responsive": false,
+          "info": "How long the feed is cached on your server before it is fetched again. Lower values mean slower page loads.",
+          "ai": {
+            "name": "cacheMinutes",
+            "description": "Minutes to cache the fetched feed on the server before refetching, 0-1440."
+          },
+          "number": {
+            "default": 60,
+            "min": 0,
+            "max": 1440,
+            "step": 15,
+            "round": true,
+            "subtitle": "Minutes. 0 fetches on every page load."
+          }
+        },
+        {
+          "title": "Filters",
+          "heading": {}
+        },
+        {
+          "title": "Only Show Matching",
+          "id": "keywordFilter",
+          "ai": {
+            "name": "keywordFilter",
+            "description": "Only show items whose title or description contains one of these words. Comma or newline separated; leave blank to show everything."
+          },
+          "responsive": false,
+          "info": "Comma separated. An item is kept if its title or description contains any of these.",
+          "input": {
+            "default": "",
+            "subtitle": "Leave empty to show everything."
+          }
+        },
+        {
+          "title": "Hide Matching",
+          "id": "excludeKeywords",
+          "ai": {
+            "name": "excludeKeywords",
+            "description": "Hide items whose title or description contains one of these words. Comma or newline separated."
+          },
+          "responsive": false,
+          "info": "Comma separated. Useful for hiding trailers and bonus items.",
+          "input": {
+            "default": "",
+            "subtitle": "Applied after the filter above."
+          }
+        },
+        {
+          "title": "If The Feed Fails",
+          "id": "fallbackBehavior",
+          "ai": {
+            "name": "fallbackBehavior",
+            "description": "What to render when the feed cannot be loaded or returns nothing: hide the component entirely, or show a message."
+          },
+          "responsive": false,
+          "info": "A broken or unreachable feed never breaks your page. Choose what visitors see instead.",
+          "segmented": {
+            "default": "hide",
+            "items": [
+              {
+                "value": "hide",
+                "title": "Hide"
+              },
+              {
+                "value": "message",
+                "title": "Message"
+              }
+            ]
+          }
+        },
+        {
+          "title": "Fallback Message",
+          "id": "fallbackMessage",
+          "ai": {
+            "name": "fallbackMessage",
+            "description": "Text shown in place of the feed when it fails, if the fallback behaviour is set to Message.",
+            "visible": "fallbackBehavior == 'message'"
+          },
+          "responsive": false,
+          "visible": "fallbackBehavior == 'message'",
+          "text": {
+            "default": "Episodes are unavailable right now. Please check back soon."
+          }
+        },
+        {
+          "title": "Diagnostics",
+          "heading": {}
+        },
+        {
+          "title": "Turn this on, publish, and the component prints what it detected in the feed — format, item count, missing fields and any parse warnings. Turn it off before launch.",
+          "information": {}
+        },
+        {
+          "title": "Show Diagnostics",
+          "id": "showDiagnostics",
+          "responsive": false,
+          "ai": {
+            "name": "showDiagnostics",
+            "description": "Show a developer panel reporting detected feed format, item count and parse warnings."
+          },
+          "switch": {
+            "default": false
+          }
+        }
+      ]
+    },
+    {
+      "title": "Layout",
+      "icon": "square.grid.2x2",
+      "properties": [
+        {
+          "title": "Layout",
+          "id": "layoutMode",
+          "responsive": false,
+          "ai": {
+            "name": "layoutMode",
+            "description": "Arrangement of feed items: card grid, list rows, compact text list, or featured, which is one full-width card per row with every card alike.",
+            "values": [
+              "grid",
+              "list",
+              "compact",
+              "featured"
+            ]
+          },
+          "segmented": {
+            "default": "grid",
+            "items": [
+              {
+                "value": "grid",
+                "title": "Grid"
+              },
+              {
+                "value": "list",
+                "title": "List"
+              },
+              {
+                "value": "compact",
+                "title": "Compact"
+              },
+              {
+                "value": "featured",
+                "title": "Featured"
+              }
+            ]
+          }
+        },
+        {
+          "title": "Columns",
+          "id": "columns",
+          "visible": "layoutMode == 'grid'",
+          "format": "grid-cols-{{value}}",
+          "ai": {
+            "name": "columns",
+            "description": "Number of grid columns per breakpoint, 1-4.",
+            "visible": "layoutMode == 'grid'"
+          },
+          "select": {
+            "default": {
+              "base": "1",
+              "md": "2",
+              "lg": "3"
+            },
+            "items": [
+              {
+                "value": "1",
+                "title": "1 Column"
+              },
+              {
+                "value": "2",
+                "title": "2 Columns"
+              },
+              {
+                "value": "3",
+                "title": "3 Columns"
+              },
+              {
+                "value": "4",
+                "title": "4 Columns"
+              }
+            ]
+          }
+        },
+        {
+          "title": "Gap",
+          "id": "gridGap",
+          "ai": {
+            "name": "gridGap",
+            "description": "Space between items, 0-24 on the spacing scale, per breakpoint."
+          },
+          "format": "gap-[calc({{value}}*0.25rem)]",
+          "info": "Space between items. Steps of the spacing scale — the same numbers the Padding and Margin controls use, where 4 is 1rem. Emitted as an exact CSS length so it renders identically on Tailwind 3 and 4 themes.",
+          "slider": {
+            "default": 6,
+            "min": 0,
+            "max": 24,
+            "step": 1,
+            "round": true
+          }
+        },
+        {
+          "title": "Artwork Position",
+          "id": "imagePosition",
+          "ai": {
+            "name": "imagePosition",
+            "description": "Which side the artwork sits on in list layout, left or right.",
+            "visible": "layoutMode == 'list'"
+          },
+          "responsive": false,
+          "visible": "layoutMode == 'list'",
+          "segmented": {
+            "default": "left",
+            "items": [
+              {
+                "value": "left",
+                "title": "Left"
+              },
+              {
+                "value": "right",
+                "title": "Right"
+              }
+            ]
+          }
+        },
+        {
+          "title": "Divider Between Rows",
+          "id": "showDivider",
+          "ai": {
+            "name": "showDivider",
+            "description": "Whether a dividing line is drawn between rows in list and compact layouts.",
+            "visible": "layoutMode == 'list' || layoutMode == 'compact'"
+          },
+          "responsive": false,
+          "visible": "layoutMode == 'list' || layoutMode == 'compact'",
+          "switch": {
+            "default": true
+          }
+        },
+        {
+          "title": "Divider Color",
+          "id": "dividerColor",
+          "ai": {
+            "name": "dividerColor",
+            "description": "Colour of the dividing line between rows.",
+            "visible": "preset == 'custom' && (layoutMode == 'list' || layoutMode == 'compact') && showDivider == true"
+          },
+          "format": "divide-{{value}}",
+          "visible": "preset == 'custom' && (layoutMode == 'list' || layoutMode == 'compact') && showDivider == true",
+          "themeColor": {
+            "default": {
+              "name": "surface",
+              "brightness": 200,
+              "darkName": "surface",
+              "darkBrightness": 700
+            }
+          }
+        },
+        {
+          "title": "Heading Level",
+          "id": "headingLevel",
+          "ai": {
+            "name": "headingLevel",
+            "description": "HTML heading level used for item titles, h2 to h4. Pick the one that fits the page's heading order."
+          },
+          "responsive": false,
+          "info": "Item titles use this HTML heading tag. Pick the level that sits correctly under the headings already on the page.",
+          "select": {
+            "default": "h3",
+            "items": [
+              {
+                "value": "h2",
+                "title": "Heading 2"
+              },
+              {
+                "value": "h3",
+                "title": "Heading 3"
+              },
+              {
+                "value": "h4",
+                "title": "Heading 4"
+              }
+            ]
+          }
+        },
+        {
+          "title": "Colour Preset",
+          "heading": {}
+        },
+        {
+          "title": "Presets set every colour at once. Choose Custom to reveal the individual colour controls. Presets change colours only: card padding, radius, borders and shadows keep following Theme Studio, and the gaps, artwork width and player sizes keep the values you set, whichever preset you pick.",
+          "information": {}
+        }
+      ]
+    },
+    {
+      "title": "Card",
+      "icon": "rectangle.on.rectangle",
+      "properties": [
+        {
+          "title": "Padding",
+          "id": "cardPadding",
+          "ai": {
+            "name": "cardPadding",
+            "description": "Space inside each card, per breakpoint."
+          },
+          "info": "From the Theme Studio spacing scale.",
+          "themeSpacing": {
+            "mode": "padding",
+            "default": {
+              "base": {
+                "top": "5",
+                "right": "5",
+                "bottom": "5",
+                "left": "5"
+              }
+            }
+          }
+        },
+        {
+          "title": "Inner Gap",
+          "id": "cardGap",
+          "ai": {
+            "name": "cardGap",
+            "description": "Space between the artwork and the text inside a card, 0-24 on the spacing scale, per breakpoint."
+          },
+          "format": "gap-[calc({{value}}*0.25rem)]",
+          "info": "Space between the artwork and the text. Steps of the spacing scale — the same numbers the Padding and Margin controls use, where 4 is 1rem. Emitted as an exact CSS length so it renders identically on Tailwind 3 and 4 themes.",
+          "slider": {
+            "default": 4,
+            "min": 0,
+            "max": 24,
+            "step": 1,
+            "round": true
+          }
+        },
+        {
+          "title": "Shadow",
+          "id": "cardShadow",
+          "ai": {
+            "name": "cardShadow",
+            "description": "Drop shadow on each card."
+          },
+          "themeShadow": {
+            "mode": "box",
+            "default": {
+              "base": {
+                "name": "none"
+              }
+            }
+          }
+        },
+        {
+          "title": "Hover Effect",
+          "id": "hoverEffect",
+          "ai": {
+            "name": "hoverEffect",
+            "description": "What a card does on hover: nothing, lift, zoom, highlight its border, or deepen its shadow."
+          },
+          "responsive": false,
+          "info": "Motion on pointer hover. Off by default - a card that shifts under the cursor is easy to add and hard to un-notice. Any setting other than None also enables the transition. Respects the visitor’s reduce-motion setting.",
+          "select": {
+            "default": "none",
+            "items": [
+              {
+                "value": "none",
+                "title": "None"
+              },
+              {
+                "value": "lift",
+                "title": "Lift"
+              },
+              {
+                "value": "scale",
+                "title": "Zoom"
+              },
+              {
+                "value": "border",
+                "title": "Highlight border"
+              },
+              {
+                "value": "shadow",
+                "title": "Deepen shadow"
+              }
+            ]
+          }
+        },
+        {
+          "title": "Transition Duration",
+          "id": "transitionDuration",
+          "ai": {
+            "name": "transitionDuration",
+            "description": "How long the hover effect takes.",
+            "visible": "hoverEffect != 'none'"
+          },
+          "responsive": false,
+          "format": "duration-{{value}}",
+          "visible": "hoverEffect != 'none'",
+          "select": {
+            "default": "200",
+            "items": [
+              {
+                "value": "75",
+                "title": "Very fast"
+              },
+              {
+                "value": "150",
+                "title": "Fast"
+              },
+              {
+                "value": "200",
+                "title": "Normal"
+              },
+              {
+                "value": "300",
+                "title": "Slow"
+              },
+              {
+                "value": "500",
+                "title": "Very slow"
+              }
+            ]
+          }
+        },
+        {
+          "title": "Transition Easing",
+          "id": "transitionEasing",
+          "ai": {
+            "name": "transitionEasing",
+            "description": "Acceleration curve of the hover effect.",
+            "visible": "hoverEffect != 'none'"
+          },
+          "responsive": false,
+          "visible": "hoverEffect != 'none'",
+          "select": {
+            "default": "ease-out",
+            "items": [
+              {
+                "value": "ease-linear",
+                "title": "Linear"
+              },
+              {
+                "value": "ease-in",
+                "title": "Ease in"
+              },
+              {
+                "value": "ease-out",
+                "title": "Ease out"
+              },
+              {
+                "value": "ease-in-out",
+                "title": "Ease in out"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "title": "Colours",
+      "icon": "paintpalette",
+      "properties": [
+        {
+          "title": "Preset",
+          "id": "preset",
+          "responsive": false,
+          "ai": {
+            "name": "colourPreset",
+            "description": "Bundled colour palette for the cards. Custom exposes every individual colour control.",
+            "values": [
+              "card",
+              "minimal",
+              "bold",
+              "contrast",
+              "custom"
+            ]
+          },
+          "select": {
+            "default": "card",
+            "items": [
+              {
+                "value": "card",
+                "title": "Card"
+              },
+              {
+                "value": "minimal",
+                "title": "Minimal"
+              },
+              {
+                "value": "bold",
+                "title": "Bold"
+              },
+              {
+                "value": "contrast",
+                "title": "Contrast"
+              },
+              {
+                "value": "custom",
+                "title": "Custom"
+              }
+            ]
+          },
+          "info": "Bundled colour palettes. Choose Custom to reveal the individual colour controls below - while any other preset is selected those controls are ignored, so they stay hidden."
+        },
+        {
+          "title": "Text Colour",
+          "id": "textColour",
+          "responsive": false,
+          "visible": "preset != 'custom'",
+          "ai": {
+            "name": "textColour",
+            "description": "How the preset picks its text colours. From Theme uses the theme's own colour ramp. Flipped uses the opposite end of that ramp, for a theme whose ramp runs the other way round and leaves the text unreadable. Fixed uses literal colours that ignore the theme entirely.",
+            "visible": "preset != 'custom'",
+            "values": [
+              "theme",
+              "flipped",
+              "fixed"
+            ]
+          },
+          "segmented": {
+            "default": "theme",
+            "items": [
+              {
+                "value": "theme",
+                "title": "From Theme"
+              },
+              {
+                "value": "flipped",
+                "title": "Flipped"
+              },
+              {
+                "value": "fixed",
+                "title": "Fixed"
+              }
+            ]
+          },
+          "info": "Can't read the text? Some themes set their colour ramps the other way round, with the light shades where the dark ones normally are, and a card built on that theme can come out white on white. Flipped takes the opposite end of the same ramp, so the cards still re-skin when you switch theme - it applies to Card and Minimal, which take their text and their background from different parts of the theme and so can come apart. Bold and Contrast take both from the same part, which means they move together and already correct themselves, so Flipped deliberately leaves those two alone. Fixed uses literal colours that ignore the theme: it always reads, on any preset, but it no longer follows the theme. From Theme is what every existing instance already uses and nothing about it has changed."
+        },
+        {
+          "title": "Card",
+          "heading": {},
+          "visible": "preset == 'custom'"
+        },
+        {
+          "title": "Background",
+          "id": "cardBg",
+          "ai": {
+            "name": "cardBg",
+            "description": "Card background colour. Only used when the preset is set to Custom.",
+            "visible": "preset == 'custom'"
+          },
+          "format": "bg-{{value}}",
+          "themeColor": {
+            "default": {
+              "name": "surface",
+              "brightness": 50,
+              "darkName": "surface",
+              "darkBrightness": 900
+            }
+          },
+          "visible": "preset == 'custom'"
+        },
+        {
+          "title": "Text",
+          "heading": {},
+          "visible": "preset == 'custom'"
+        },
+        {
+          "title": "Title",
+          "id": "titleColor",
+          "ai": {
+            "name": "titleColor",
+            "description": "Item title colour. Only used when the preset is set to Custom.",
+            "visible": "preset == 'custom'"
+          },
+          "format": "text-{{value}}",
+          "themeColor": {
+            "default": {
+              "name": "text",
+              "brightness": 900,
+              "darkName": "text",
+              "darkBrightness": 50
+            }
+          },
+          "visible": "preset == 'custom'"
+        },
+        {
+          "title": "Title on Hover",
+          "id": "titleColorHover",
+          "ai": {
+            "name": "titleColorHover",
+            "description": "Item title colour on hover. Only used when the preset is set to Custom.",
+            "visible": "preset == 'custom'"
+          },
+          "format": "group-hover:text-{{value}}",
+          "themeColor": {
+            "default": {
+              "name": "brand",
+              "brightness": 600,
+              "darkName": "brand",
+              "darkBrightness": 400
+            }
+          },
+          "visible": "preset == 'custom'"
+        },
+        {
+          "title": "Meta",
+          "id": "metaColor",
+          "ai": {
+            "name": "metaColor",
+            "description": "Colour of the meta line — date, duration, episode number. Only used when the preset is set to Custom.",
+            "visible": "preset == 'custom'"
+          },
+          "format": "text-{{value}}",
+          "info": "Date, duration, reading time and byline.",
+          "themeColor": {
+            "default": {
+              "name": "text",
+              "brightness": 500,
+              "darkName": "text",
+              "darkBrightness": 400
+            }
+          },
+          "visible": "preset == 'custom'"
+        },
+        {
+          "title": "Description",
+          "id": "bodyColor",
+          "ai": {
+            "name": "bodyColor",
+            "description": "Item description colour. Only used when the preset is set to Custom.",
+            "visible": "preset == 'custom'"
+          },
+          "format": "text-{{value}}",
+          "themeColor": {
+            "default": {
+              "name": "text",
+              "brightness": 700,
+              "darkName": "text",
+              "darkBrightness": 300
+            }
+          },
+          "visible": "preset == 'custom'"
+        },
+        {
+          "title": "Badges",
+          "heading": {},
+          "visible": "preset == 'custom'"
+        },
+        {
+          "title": "Badge Background",
+          "id": "badgeBg",
+          "ai": {
+            "name": "badgeBg",
+            "description": "Background colour of the episode, season and explicit badges. Only used when the preset is set to Custom.",
+            "visible": "preset == 'custom'"
+          },
+          "format": "bg-{{value}}",
+          "info": "Episode number, season, explicit and tag pills.",
+          "themeColor": {
+            "default": {
+              "name": "surface",
+              "brightness": 100,
+              "darkName": "surface",
+              "darkBrightness": 800
+            }
+          },
+          "visible": "preset == 'custom'"
+        },
+        {
+          "title": "Badge Text",
+          "id": "badgeText",
+          "ai": {
+            "name": "badgeText",
+            "description": "Text colour of the episode, season and explicit badges. Only used when the preset is set to Custom.",
+            "visible": "preset == 'custom'"
+          },
+          "format": "text-{{value}}",
+          "themeColor": {
+            "default": {
+              "name": "text",
+              "brightness": 600,
+              "darkName": "text",
+              "darkBrightness": 300
+            }
+          },
+          "visible": "preset == 'custom'"
+        },
+        {
+          "title": "Player",
+          "heading": {},
+          "visible": "preset == 'custom' && feedType != 'articles'"
+        },
+        {
+          "title": "Play Button",
+          "id": "accentColor",
+          "ai": {
+            "name": "accentColor",
+            "description": "Play button background colour. Only used when the preset is set to Custom.",
+            "visible": "preset == 'custom' && feedType != 'articles'"
+          },
+          "format": "bg-{{value}}",
+          "visible": "preset == 'custom' && feedType != 'articles'",
+          "themeColor": {
+            "default": {
+              "name": "brand",
+              "brightness": 600
+            }
+          }
+        },
+        {
+          "title": "Play Icon",
+          "id": "accentTextColor",
+          "ai": {
+            "name": "accentTextColor",
+            "description": "Play icon colour. Only used when the preset is set to Custom.",
+            "visible": "preset == 'custom' && feedType != 'articles'"
+          },
+          "format": "text-{{value}}",
+          "visible": "preset == 'custom' && feedType != 'articles'",
+          "themeColor": {
+            "default": {
+              "name": "surface",
+              "brightness": 50
+            }
+          }
+        },
+        {
+          "title": "Progress Track",
+          "id": "trackColor",
+          "ai": {
+            "name": "trackColor",
+            "description": "Colour of the unplayed part of the progress bar. Only used when the preset is set to Custom.",
+            "visible": "preset == 'custom' && feedType != 'articles'"
+          },
+          "format": "bg-{{value}}",
+          "visible": "preset == 'custom' && feedType != 'articles'",
+          "themeColor": {
+            "default": {
+              "name": "surface",
+              "brightness": 200,
+              "darkName": "surface",
+              "darkBrightness": 700
+            }
+          }
+        },
+        {
+          "title": "Progress Fill",
+          "id": "fillColor",
+          "ai": {
+            "name": "fillColor",
+            "description": "Colour of the played part of the progress bar. Only used when the preset is set to Custom.",
+            "visible": "preset == 'custom' && feedType != 'articles'"
+          },
+          "format": "bg-{{value}}",
+          "visible": "preset == 'custom' && feedType != 'articles'",
+          "themeColor": {
+            "default": {
+              "name": "brand",
+              "brightness": 600
+            }
+          }
+        }
+      ]
+    },
+    {
+      "title": "Artwork",
+      "icon": "photo",
+      "properties": [
+        {
+          "title": "Show Artwork",
+          "id": "showImage",
+          "ai": {
+            "name": "showImage",
+            "description": "Whether item artwork is shown at all."
+          },
+          "responsive": false,
+          "switch": {
+            "default": true
+          }
+        },
+        {
+          "title": "Fallback Image",
+          "id": "fallbackImage",
+          "ai": {
+            "name": "fallbackImage",
+            "description": "Image used when an item has no artwork of its own and the feed has no channel image.",
+            "visible": "showImage == true"
+          },
+          "visible": "showImage == true",
+          "info": "Used when an item has no artwork of its own and the feed has no channel image.",
+          "resource": {
+            "accepts": "image/*"
+          }
+        },
+        {
+          "title": "Aspect Ratio",
+          "id": "imageAspect",
+          "ai": {
+            "name": "imageAspect",
+            "description": "Shape of the artwork frame, such as square, 4:3 or 16:9.",
+            "visible": "showImage == true"
+          },
+          "responsive": false,
+          "visible": "showImage == true",
+          "select": {
+            "default": "aspect-square",
+            "items": [
+              {
+                "value": "aspect-square",
+                "title": "Square (1:1)"
+              },
+              {
+                "value": "aspect-[4/3]",
+                "title": "Classic (4:3)"
+              },
+              {
+                "value": "aspect-video",
+                "title": "Widescreen (16:9)"
+              },
+              {
+                "value": "aspect-[3/2]",
+                "title": "Photo (3:2)"
+              },
+              {
+                "value": "aspect-[21/9]",
+                "title": "Cinematic (21:9)"
+              },
+              {
+                "value": "aspect-auto",
+                "title": "Original"
+              }
+            ]
+          }
+        },
+        {
+          "title": "Artwork Width",
+          "id": "imageWidth",
+          "format": "w-{{value}}",
+          "info": "Width of the artwork inside the card, per breakpoint. Square cover art at full width fills a phone screen, so a narrower value on the base breakpoint shortens the card without cropping the image. List layout has its own width.",
+          "visible": "showImage == true && layoutMode != 'list' && layoutMode != 'compact'",
+          "ai": {
+            "name": "artworkWidth",
+            "description": "Artwork width inside the card as a fraction of the card, per breakpoint.",
+            "visible": "showImage == true && layoutMode != 'list' && layoutMode != 'compact'"
+          },
+          "select": {
+            "default": {
+              "base": "full"
+            },
+            "items": [
+              {
+                "value": "full",
+                "title": "Full Width"
+              },
+              {
+                "value": "3/4",
+                "title": "Three Quarters"
+              },
+              {
+                "value": "2/3",
+                "title": "Two Thirds"
+              },
+              {
+                "value": "1/2",
+                "title": "Half"
+              },
+              {
+                "value": "2/5",
+                "title": "Two Fifths"
+              }
+            ]
+          }
+        },
+        {
+          "title": "Fit",
+          "id": "imageFit",
+          "ai": {
+            "name": "imageFit",
+            "description": "How artwork fills its frame: cropped to fill, letterboxed to fit, or stretched.",
+            "visible": "showImage == true"
+          },
+          "responsive": false,
+          "visible": "showImage == true",
+          "select": {
+            "default": "object-cover",
+            "items": [
+              {
+                "value": "object-cover",
+                "title": "Fill (crop)"
+              },
+              {
+                "value": "object-contain",
+                "title": "Fit (letterbox)"
+              },
+              {
+                "value": "object-fill",
+                "title": "Stretch"
+              }
+            ]
+          }
+        },
+        {
+          "title": "Position",
+          "id": "imageObjectPosition",
+          "ai": {
+            "name": "imageObjectPosition",
+            "description": "Which part of a cropped image stays visible, such as centre or top.",
+            "visible": "showImage == true && imageFit == 'object-cover'"
+          },
+          "responsive": false,
+          "visible": "showImage == true && imageFit == 'object-cover'",
+          "info": "Which part of the artwork stays visible when it is cropped.",
+          "select": {
+            "default": "object-center",
+            "items": [
+              {
+                "value": "object-left-top",
+                "title": "Top left"
+              },
+              {
+                "value": "object-top",
+                "title": "Top"
+              },
+              {
+                "value": "object-right-top",
+                "title": "Top right"
+              },
+              {
+                "value": "object-left",
+                "title": "Left"
+              },
+              {
+                "value": "object-center",
+                "title": "Centre"
+              },
+              {
+                "value": "object-right",
+                "title": "Right"
+              },
+              {
+                "value": "object-left-bottom",
+                "title": "Bottom left"
+              },
+              {
+                "value": "object-bottom",
+                "title": "Bottom"
+              },
+              {
+                "value": "object-right-bottom",
+                "title": "Bottom right"
+              }
+            ]
+          }
+        },
+        {
+          "title": "Radius",
+          "id": "imageRadius",
+          "ai": {
+            "name": "imageRadius",
+            "description": "Corner rounding of the artwork.",
+            "visible": "showImage == true"
+          },
+          "visible": "showImage == true",
+          "themeBorderRadius": {
+            "default": {
+              "base": {
+                "topLeft": "2xl",
+                "topRight": "2xl",
+                "bottomLeft": "2xl",
+                "bottomRight": "2xl"
+              }
+            }
+          }
+        },
+        {
+          "title": "Shadow",
+          "id": "imageShadow",
+          "ai": {
+            "name": "imageShadow",
+            "description": "Drop shadow on the artwork.",
+            "visible": "showImage == true"
+          },
+          "visible": "showImage == true",
+          "themeShadow": {
+            "mode": "box",
+            "default": {
+              "base": {
+                "name": "none"
+              }
+            }
+          }
+        },
+        {
+          "title": "Width in List Layout",
+          "id": "listImageWidth",
+          "ai": {
+            "name": "listImageWidth",
+            "description": "Thumbnail width in list layout, 8-64 on the spacing scale, per breakpoint.",
+            "visible": "showImage == true && layoutMode == 'list'"
+          },
+          "format": "w-[calc({{value}}*0.25rem)]",
+          "visible": "showImage == true && layoutMode == 'list'",
+          "info": "Thumbnail width in list layout. Steps of the spacing scale — the same numbers the Padding and Margin controls use, where 4 is 1rem. Emitted as an exact CSS length so it renders identically on Tailwind 3 and 4 themes.",
+          "slider": {
+            "default": 32,
+            "min": 8,
+            "max": 64,
+            "step": 1,
+            "round": true
+          }
+        },
+        {
+          "title": "Hover Effect",
+          "id": "imageHover",
+          "ai": {
+            "name": "imageHover",
+            "description": "What the artwork does on hover: nothing, zoom in, brighten, or fade in from greyscale.",
+            "visible": "showImage == true"
+          },
+          "responsive": false,
+          "visible": "showImage == true",
+          "select": {
+            "default": "none",
+            "items": [
+              {
+                "value": "none",
+                "title": "None"
+              },
+              {
+                "value": "zoom",
+                "title": "Zoom in"
+              },
+              {
+                "value": "brighten",
+                "title": "Brighten"
+              },
+              {
+                "value": "grayscale",
+                "title": "Colour from grey"
+              }
+            ]
+          }
+        },
+        {
+          "title": "Play Icon Overlay",
+          "id": "showPlayOverlay",
+          "ai": {
+            "name": "showPlayOverlay",
+            "description": "Whether a play icon is drawn over the artwork of episodes and videos.",
+            "visible": "showImage == true && feedType != 'articles'"
+          },
+          "responsive": false,
+          "visible": "showImage == true && feedType != 'articles'",
+          "info": "Draws a play badge over the artwork on episode and video cards.",
+          "switch": {
+            "default": false
+          }
+        },
+        {
+          "title": "Overlay Tint",
+          "id": "showImageOverlay",
+          "ai": {
+            "name": "showImageOverlay",
+            "description": "Whether a colour tint is drawn over the artwork.",
+            "visible": "showImage == true"
+          },
+          "responsive": false,
+          "visible": "showImage == true",
+          "info": "Darkens or tints the artwork, which helps a play badge read against a busy image.",
+          "switch": {
+            "default": false
+          }
+        },
+        {
+          "title": "Overlay Colour",
+          "id": "imageOverlay",
+          "ai": {
+            "name": "imageOverlay",
+            "description": "Colour of the tint drawn over the artwork.",
+            "visible": "showImage == true && showImageOverlay == true"
+          },
+          "format": "bg-{{value}}",
+          "visible": "showImage == true && showImageOverlay == true",
+          "themeColor": {
+            "default": {
+              "name": "black",
+              "brightness": 950,
+              "darkName": "black",
+              "darkBrightness": 950
+            }
+          }
+        },
+        {
+          "title": "Overlay Opacity",
+          "id": "imageOverlayOpacity",
+          "ai": {
+            "name": "imageOverlayOpacity",
+            "description": "Strength of the artwork tint, 10 to 70 percent.",
+            "visible": "showImage == true && showImageOverlay == true"
+          },
+          "format": "opacity-{{value}}",
+          "visible": "showImage == true && showImageOverlay == true",
+          "select": {
+            "default": "30",
+            "items": [
+              {
+                "value": "10",
+                "title": "10%"
+              },
+              {
+                "value": "20",
+                "title": "20%"
+              },
+              {
+                "value": "30",
+                "title": "30%"
+              },
+              {
+                "value": "40",
+                "title": "40%"
+              },
+              {
+                "value": "50",
+                "title": "50%"
+              },
+              {
+                "value": "60",
+                "title": "60%"
+              },
+              {
+                "value": "70",
+                "title": "70%"
+              }
+            ]
+          }
+        },
+        {
+          "title": "Ignore Images Under",
+          "id": "minImageWidth",
+          "ai": {
+            "name": "minImageWidth",
+            "description": "Ignore images in article bodies narrower than this, in pixels, to skip tracking pixels and spacers. Zero disables the check.",
+            "visible": "showImage == true"
+          },
+          "responsive": false,
+          "visible": "showImage == true",
+          "info": "Skips tracking pixels and spacer images found inside article HTML.",
+          "number": {
+            "default": 400,
+            "min": 0,
+            "max": 2000,
+            "step": 50,
+            "round": true,
+            "subtitle": "Pixels wide."
+          }
+        },
+        {
+          "title": "Lazy Load",
+          "id": "lazyLoad",
+          "ai": {
+            "name": "lazyLoad",
+            "description": "Whether artwork loads only as it scrolls into view.",
+            "visible": "showImage == true"
+          },
+          "responsive": false,
+          "visible": "showImage == true",
+          "info": "Turn off if this component sits at the top of the page.",
+          "switch": {
+            "default": true
+          }
+        },
+        {
+          "title": "Force HTTPS Images",
+          "id": "forceHttps",
+          "ai": {
+            "name": "forceHttps",
+            "description": "Whether insecure image addresses from the feed are rewritten to https, so they are not blocked on a secure page.",
+            "visible": "showImage == true"
+          },
+          "responsive": false,
+          "visible": "showImage == true",
+          "info": "Rewrites http:// image addresses so browsers don't block them as mixed content on a secure site.",
+          "switch": {
+            "default": true
+          }
+        }
+      ]
+    },
+    {
+      "title": "Typography",
+      "icon": "textformat",
+      "properties": [
+        {
+          "title": "Title",
+          "heading": {}
+        },
+        {
+          "title": "Font",
+          "id": "titleFont",
+          "ai": {
+            "name": "titleFont",
+            "description": "Font family for item titles."
+          },
+          "themeFont": {
+            "default": {
+              "base": {
+                "name": "heading"
+              }
+            }
+          }
+        },
+        {
+          "title": "Size",
+          "id": "titleSize",
+          "ai": {
+            "name": "titleSize",
+            "description": "Text size for item titles, per breakpoint."
+          },
+          "themeTextStyle": {
+            "default": {
+              "base": {
+                "name": "lg"
+              }
+            }
+          }
+        },
+        {
+          "title": "Weight",
+          "id": "titleWeight",
+          "ai": {
+            "name": "titleWeight",
+            "description": "Font weight for item titles."
+          },
+          "select": {
+            "default": "font-semibold",
+            "items": [
+              {
+                "value": "font-light",
+                "title": "Light"
+              },
+              {
+                "value": "font-normal",
+                "title": "Normal"
+              },
+              {
+                "value": "font-medium",
+                "title": "Medium"
+              },
+              {
+                "value": "font-semibold",
+                "title": "Semi Bold"
+              },
+              {
+                "value": "font-bold",
+                "title": "Bold"
+              },
+              {
+                "value": "font-extrabold",
+                "title": "Extra Bold"
+              },
+              {
+                "value": "font-black",
+                "title": "Black"
+              }
+            ]
+          }
+        },
+        {
+          "title": "Letter Spacing",
+          "id": "titleTracking",
+          "ai": {
+            "name": "titleTracking",
+            "description": "Letter spacing for item titles."
+          },
+          "select": {
+            "default": "tracking-normal",
+            "items": [
+              {
+                "value": "tracking-tighter",
+                "title": "Tighter"
+              },
+              {
+                "value": "tracking-tight",
+                "title": "Tight"
+              },
+              {
+                "value": "tracking-normal",
+                "title": "Normal"
+              },
+              {
+                "value": "tracking-wide",
+                "title": "Wide"
+              },
+              {
+                "value": "tracking-wider",
+                "title": "Wider"
+              }
+            ]
+          }
+        },
+        {
+          "title": "Line Height",
+          "id": "titleLeading",
+          "ai": {
+            "name": "titleLeading",
+            "description": "Line height for item titles."
+          },
+          "select": {
+            "default": "leading-snug",
+            "items": [
+              {
+                "value": "leading-none",
+                "title": "None"
+              },
+              {
+                "value": "leading-tight",
+                "title": "Tight"
+              },
+              {
+                "value": "leading-snug",
+                "title": "Snug"
+              },
+              {
+                "value": "leading-normal",
+                "title": "Normal"
+              },
+              {
+                "value": "leading-relaxed",
+                "title": "Relaxed"
+              }
+            ]
+          }
+        },
+        {
+          "title": "Case",
+          "id": "titleTransform",
+          "ai": {
+            "name": "titleTransform",
+            "description": "Letter case for item titles: as written, uppercase, lowercase or capitalised."
+          },
+          "select": {
+            "default": "normal-case",
+            "items": [
+              {
+                "value": "normal-case",
+                "title": "None"
+              },
+              {
+                "value": "uppercase",
+                "title": "Uppercase"
+              },
+              {
+                "value": "lowercase",
+                "title": "Lowercase"
+              },
+              {
+                "value": "capitalize",
+                "title": "Capitalise"
+              }
+            ]
+          }
+        },
+        {
+          "title": "Alignment",
+          "id": "textAlign",
+          "ai": {
+            "name": "textAlign",
+            "description": "Text alignment inside each card, per breakpoint."
+          },
+          "info": "Applies to the title, meta line and description.",
+          "select": {
+            "default": "text-left",
+            "items": [
+              {
+                "value": "text-left",
+                "title": "Left"
+              },
+              {
+                "value": "text-center",
+                "title": "Centre"
+              },
+              {
+                "value": "text-right",
+                "title": "Right"
+              }
+            ]
+          }
+        },
+        {
+          "title": "Maximum Lines",
+          "id": "titleClamp",
+          "ai": {
+            "name": "titleClamp",
+            "description": "Maximum lines of title before it is truncated, 0 to 6. Zero hides the title entirely."
+          },
+          "responsive": false,
+          "info": "Trims long titles. 0 renders no title at all; 6 is the longest it will show. To hide titles everywhere, either set this to 0 or switch off Show Title under Content.",
+          "slider": {
+            "default": 2,
+            "min": 0,
+            "max": 6,
+            "step": 1,
+            "round": true,
+            "ticks": 7,
+            "snap": true
+          }
+        },
+        {
+          "title": "Meta",
+          "heading": {}
+        },
+        {
+          "title": "Font",
+          "id": "metaFont",
+          "ai": {
+            "name": "metaFont",
+            "description": "Font family for the meta line — date, duration, episode number."
+          },
+          "themeFont": {
+            "default": {
+              "base": {
+                "name": "body"
+              }
+            }
+          }
+        },
+        {
+          "title": "Size",
+          "id": "metaSize",
+          "ai": {
+            "name": "metaSize",
+            "description": "Text size for the meta line, per breakpoint."
+          },
+          "themeTextStyle": {
+            "default": {
+              "base": {
+                "name": "xs"
+              }
+            }
+          }
+        },
+        {
+          "title": "Weight",
+          "id": "metaWeight",
+          "ai": {
+            "name": "metaWeight",
+            "description": "Font weight for the meta line."
+          },
+          "select": {
+            "default": "font-normal",
+            "items": [
+              {
+                "value": "font-light",
+                "title": "Light"
+              },
+              {
+                "value": "font-normal",
+                "title": "Normal"
+              },
+              {
+                "value": "font-medium",
+                "title": "Medium"
+              },
+              {
+                "value": "font-semibold",
+                "title": "Semi Bold"
+              },
+              {
+                "value": "font-bold",
+                "title": "Bold"
+              }
+            ]
+          }
+        },
+        {
+          "title": "Letter Spacing",
+          "id": "metaTracking",
+          "ai": {
+            "name": "metaTracking",
+            "description": "Letter spacing for the meta line."
+          },
+          "select": {
+            "default": "tracking-normal",
+            "items": [
+              {
+                "value": "tracking-normal",
+                "title": "Normal"
+              },
+              {
+                "value": "tracking-wide",
+                "title": "Wide"
+              },
+              {
+                "value": "tracking-wider",
+                "title": "Wider"
+              },
+              {
+                "value": "tracking-widest",
+                "title": "Widest"
+              }
+            ]
+          }
+        },
+        {
+          "title": "Case",
+          "id": "metaTransform",
+          "ai": {
+            "name": "metaTransform",
+            "description": "Letter case for the meta line."
+          },
+          "select": {
+            "default": "normal-case",
+            "items": [
+              {
+                "value": "normal-case",
+                "title": "None"
+              },
+              {
+                "value": "uppercase",
+                "title": "Uppercase"
+              },
+              {
+                "value": "capitalize",
+                "title": "Capitalise"
+              }
+            ]
+          }
+        },
+        {
+          "title": "Description",
+          "heading": {}
+        },
+        {
+          "title": "Font",
+          "id": "bodyFont",
+          "ai": {
+            "name": "bodyFont",
+            "description": "Font family for item descriptions."
+          },
+          "themeFont": {
+            "default": {
+              "base": {
+                "name": "body"
+              }
+            }
+          }
+        },
+        {
+          "title": "Size",
+          "id": "bodySize",
+          "ai": {
+            "name": "bodySize",
+            "description": "Text size for item descriptions, per breakpoint."
+          },
+          "themeTextStyle": {
+            "default": {
+              "base": {
+                "name": "sm"
+              }
+            }
+          }
+        },
+        {
+          "title": "Line Height",
+          "id": "bodyLeading",
+          "ai": {
+            "name": "bodyLeading",
+            "description": "Line height for item descriptions."
+          },
+          "select": {
+            "default": "leading-relaxed",
+            "items": [
+              {
+                "value": "leading-tight",
+                "title": "Tight"
+              },
+              {
+                "value": "leading-snug",
+                "title": "Snug"
+              },
+              {
+                "value": "leading-normal",
+                "title": "Normal"
+              },
+              {
+                "value": "leading-relaxed",
+                "title": "Relaxed"
+              },
+              {
+                "value": "leading-loose",
+                "title": "Loose"
+              }
+            ]
+          }
+        },
+        {
+          "title": "Maximum Lines",
+          "id": "bodyClamp",
+          "ai": {
+            "name": "bodyClamp",
+            "description": "Maximum lines of description before it is truncated, 0 to 6. Zero hides the description entirely."
+          },
+          "responsive": false,
+          "slider": {
+            "default": 3,
+            "min": 0,
+            "max": 6,
+            "step": 1,
+            "round": true,
+            "ticks": 7,
+            "snap": true
+          },
+          "info": "Trims long descriptions. 0 renders no description at all; 6 is the longest it will show. To hide descriptions everywhere, either set this to 0 or switch off Show Description under Content."
+        },
+        {
+          "title": "Links",
+          "heading": {}
+        },
+        {
+          "title": "Underline Titles",
+          "id": "titleUnderline",
+          "ai": {
+            "name": "titleUnderline",
+            "description": "When item titles are underlined: never, on hover, or always."
+          },
+          "responsive": false,
+          "select": {
+            "default": "no-underline",
+            "items": [
+              {
+                "value": "no-underline",
+                "title": "Never"
+              },
+              {
+                "value": "hover:underline",
+                "title": "On hover"
+              },
+              {
+                "value": "underline",
+                "title": "Always"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "title": "Content",
+      "icon": "text.alignleft",
+      "properties": [
+        {
+          "title": "Show Title",
+          "id": "showTitle",
+          "ai": {
+            "name": "showTitle",
+            "description": "Whether item titles are shown."
+          },
+          "responsive": false,
+          "switch": {
+            "default": true
+          },
+          "info": "Draws the item title as a heading and links it. Setting Maximum Lines to 0 under Typography has the same effect."
+        },
+        {
+          "title": "Show Date",
+          "id": "showDate",
+          "ai": {
+            "name": "showDate",
+            "description": "Whether the publication date is shown."
+          },
+          "responsive": false,
+          "switch": {
+            "default": true
+          }
+        },
+        {
+          "title": "Date Format",
+          "id": "dateFormat",
+          "ai": {
+            "name": "dateFormat",
+            "description": "How dates are written, including a relative form such as three days ago.",
+            "visible": "showDate == true"
+          },
+          "responsive": false,
+          "visible": "showDate == true",
+          "select": {
+            "default": "medium",
+            "items": [
+              {
+                "value": "medium",
+                "title": "Jul 31, 2026"
+              },
+              {
+                "value": "long",
+                "title": "31 July 2026"
+              },
+              {
+                "value": "short",
+                "title": "07/31/26"
+              },
+              {
+                "value": "iso",
+                "title": "2026-07-31"
+              },
+              {
+                "value": "relative",
+                "title": "3 days ago"
+              }
+            ]
+          }
+        },
+        {
+          "title": "Show Description",
+          "id": "showDescription",
+          "ai": {
+            "name": "showDescription",
+            "description": "Whether item descriptions are shown."
+          },
+          "responsive": false,
+          "switch": {
+            "default": true
+          },
+          "info": "Draws the item description under the title. Setting Maximum Lines to 0 under Typography has the same effect."
+        },
+        {
+          "title": "Remove Text",
+          "id": "removeText",
+          "ai": {
+            "name": "removeText",
+            "description": "Phrases to strip out of every description, one per line. Useful for boilerplate sponsor text.",
+            "visible": "showDescription == true"
+          },
+          "responsive": false,
+          "visible": "showDescription == true",
+          "info": "Deletes these exact phrases from every description. One phrase per line. Use it to strip a subscribe or sponsor block that repeats in every item.",
+          "textArea": {
+            "default": "",
+            "size": 3
+          }
+        },
+        {
+          "title": "Cut Everything After",
+          "id": "stripFromMarker",
+          "ai": {
+            "name": "stripFromMarker",
+            "description": "Cut each description at the first occurrence of this text and discard everything after it.",
+            "visible": "showDescription == true"
+          },
+          "responsive": false,
+          "visible": "showDescription == true",
+          "info": "Everything from the first occurrence of this text onward is removed. A horizontal rule of three dashes is a common marker.",
+          "input": {
+            "default": "",
+            "subtitle": "Leave empty to keep the full description."
+          }
+        },
+        {
+          "title": "Podcast & Video",
+          "heading": {},
+          "visible": "feedType != 'articles'"
+        },
+        {
+          "title": "Show Episode Number",
+          "id": "showEpisodeNumber",
+          "ai": {
+            "name": "showEpisodeNumber",
+            "description": "Whether the episode number badge is shown on podcast items.",
+            "visible": "feedType != 'articles'"
+          },
+          "responsive": false,
+          "visible": "feedType != 'articles'",
+          "switch": {
+            "default": true
+          }
+        },
+        {
+          "title": "Episode Prefix",
+          "id": "episodePrefix",
+          "ai": {
+            "name": "episodePrefix",
+            "description": "Text placed before the episode number, such as Ep.",
+            "visible": "feedType != 'articles' && showEpisodeNumber == true"
+          },
+          "responsive": false,
+          "visible": "feedType != 'articles' && showEpisodeNumber == true",
+          "text": {
+            "default": "Ep."
+          }
+        },
+        {
+          "title": "Show Season",
+          "id": "showSeason",
+          "ai": {
+            "name": "showSeason",
+            "description": "Whether the season badge is shown on podcast items.",
+            "visible": "feedType != 'articles'"
+          },
+          "responsive": false,
+          "visible": "feedType != 'articles'",
+          "switch": {
+            "default": false
+          }
+        },
+        {
+          "title": "Show Duration",
+          "id": "showDuration",
+          "ai": {
+            "name": "showDuration",
+            "description": "Whether episode length is shown.",
+            "visible": "feedType != 'articles'"
+          },
+          "responsive": false,
+          "visible": "feedType != 'articles'",
+          "switch": {
+            "default": true
+          }
+        },
+        {
+          "title": "Duration Format",
+          "id": "durationFormat",
+          "ai": {
+            "name": "durationFormat",
+            "description": "How episode length is written, such as 42 min or 00:42:15.",
+            "visible": "feedType != 'articles' && showDuration == true"
+          },
+          "responsive": false,
+          "visible": "feedType != 'articles' && showDuration == true",
+          "select": {
+            "default": "human",
+            "items": [
+              {
+                "value": "human",
+                "title": "42 min"
+              },
+              {
+                "value": "short",
+                "title": "42:15"
+              },
+              {
+                "value": "long",
+                "title": "00:42:15"
+              }
+            ]
+          }
+        },
+        {
+          "title": "Show Explicit Badge",
+          "id": "showExplicit",
+          "ai": {
+            "name": "showExplicit",
+            "description": "Whether an Explicit badge is shown on episodes marked explicit in the feed.",
+            "visible": "feedType != 'articles'"
+          },
+          "responsive": false,
+          "visible": "feedType != 'articles'",
+          "switch": {
+            "default": false
+          }
+        },
+        {
+          "title": "Articles",
+          "heading": {},
+          "visible": "feedType != 'podcast'"
+        },
+        {
+          "title": "Show Author",
+          "id": "showAuthor",
+          "ai": {
+            "name": "showAuthor",
+            "description": "Whether the author is shown on article items.",
+            "visible": "feedType != 'podcast'"
+          },
+          "responsive": false,
+          "visible": "feedType != 'podcast'",
+          "switch": {
+            "default": true
+          }
+        },
+        {
+          "title": "Show Reading Time",
+          "id": "showReadingTime",
+          "ai": {
+            "name": "showReadingTime",
+            "description": "Whether an estimated reading time is shown on article items.",
+            "visible": "feedType != 'podcast'"
+          },
+          "responsive": false,
+          "visible": "feedType != 'podcast'",
+          "switch": {
+            "default": false
+          }
+        },
+        {
+          "title": "Reading Speed",
+          "id": "wordsPerMinute",
+          "ai": {
+            "name": "wordsPerMinute",
+            "description": "Reading speed used to estimate reading time, in words per minute.",
+            "visible": "feedType != 'podcast' && showReadingTime == true"
+          },
+          "responsive": false,
+          "visible": "feedType != 'podcast' && showReadingTime == true",
+          "number": {
+            "default": 225,
+            "min": 100,
+            "max": 400,
+            "step": 25,
+            "round": true,
+            "subtitle": "Words per minute."
+          }
+        },
+        {
+          "title": "Show Tags",
+          "id": "showTags",
+          "ai": {
+            "name": "showTags",
+            "description": "Whether article tags are shown.",
+            "visible": "feedType != 'podcast'"
+          },
+          "responsive": false,
+          "visible": "feedType != 'podcast'",
+          "switch": {
+            "default": false
+          }
+        },
+        {
+          "title": "Maximum Tags",
+          "id": "maxTags",
+          "ai": {
+            "name": "maxTags",
+            "description": "How many tags to show before the rest are summarised as a count.",
+            "visible": "feedType != 'podcast' && showTags == true"
+          },
+          "responsive": false,
+          "visible": "feedType != 'podcast' && showTags == true",
+          "number": {
+            "default": 3,
+            "min": 1,
+            "max": 10,
+            "step": 1,
+            "round": true
+          }
+        }
+      ]
+    },
+    {
+      "title": "Player",
+      "icon": "play.circle",
+      "visible": "feedType != 'articles'",
+      "properties": [
+        {
+          "title": "Player",
+          "id": "playerStyle",
+          "responsive": false,
+          "ai": {
+            "name": "playerStyle",
+            "description": "Audio player shown on podcast items: a styled custom player, the browser's native player, or none."
+          },
+          "segmented": {
+            "default": "custom",
+            "items": [
+              {
+                "value": "custom",
+                "title": "Styled"
+              },
+              {
+                "value": "native",
+                "title": "Native"
+              },
+              {
+                "value": "none",
+                "title": "None"
+              }
+            ]
+          }
+        },
+        {
+          "title": "Button Size",
+          "id": "playButtonSize",
+          "ai": {
+            "name": "playButtonSize",
+            "description": "Diameter of the play button, 8-24 on the spacing scale. Keep at 11 or above so it stays a 44px touch target.",
+            "visible": "playerStyle == 'custom'"
+          },
+          "format": "w-[calc({{value}}*0.25rem)] h-[calc({{value}}*0.25rem)]",
+          "visible": "playerStyle == 'custom'",
+          "info": "Keep this at 11 or above so the button stays a 44px touch target. Steps of the spacing scale — the same numbers the Padding and Margin controls use, where 4 is 1rem. Emitted as an exact CSS length so it renders identically on Tailwind 3 and 4 themes.",
+          "slider": {
+            "default": 11,
+            "min": 8,
+            "max": 24,
+            "step": 1,
+            "round": true
+          }
+        },
+        {
+          "title": "Progress Bar Height",
+          "id": "trackHeight",
+          "ai": {
+            "name": "trackHeight",
+            "description": "Thickness of the progress bar, 1-8 on the spacing scale, per breakpoint.",
+            "visible": "playerStyle == 'custom'"
+          },
+          "format": "h-[calc({{value}}*0.25rem)]",
+          "visible": "playerStyle == 'custom'",
+          "info": "Thickness of the progress bar. Steps of the spacing scale — the same numbers the Padding and Margin controls use, where 4 is 1rem. Emitted as an exact CSS length so it renders identically on Tailwind 3 and 4 themes.",
+          "slider": {
+            "default": 2,
+            "min": 1,
+            "max": 8,
+            "step": 1,
+            "round": true
+          }
+        },
+        {
+          "title": "Progress Bar Radius",
+          "id": "trackRadius",
+          "ai": {
+            "name": "trackRadius",
+            "description": "Corner rounding of the progress bar.",
+            "visible": "playerStyle == 'custom'"
+          },
+          "visible": "playerStyle == 'custom'",
+          "themeBorderRadius": {
+            "default": {
+              "base": {
+                "topLeft": "full",
+                "topRight": "full",
+                "bottomLeft": "full",
+                "bottomRight": "full"
+              }
+            }
+          }
+        },
+        {
+          "title": "Show Elapsed Time",
+          "id": "showTime",
+          "ai": {
+            "name": "showTime",
+            "description": "Whether elapsed and total time are shown next to the progress bar.",
+            "visible": "playerStyle == 'custom'"
+          },
+          "responsive": false,
+          "visible": "playerStyle == 'custom'",
+          "switch": {
+            "default": true
+          }
+        },
+        {
+          "title": "Skip Buttons",
+          "id": "showSkip",
+          "ai": {
+            "name": "showSkip",
+            "description": "Whether skip back and skip forward buttons are shown.",
+            "visible": "playerStyle == 'custom'"
+          },
+          "responsive": false,
+          "visible": "playerStyle == 'custom'",
+          "switch": {
+            "default": true
+          }
+        },
+        {
+          "title": "Skip Back",
+          "id": "skipBackSeconds",
+          "ai": {
+            "name": "skipBackSeconds",
+            "description": "Seconds the skip back button jumps.",
+            "visible": "playerStyle == 'custom' && showSkip == true"
+          },
+          "responsive": false,
+          "visible": "playerStyle == 'custom' && showSkip == true",
+          "number": {
+            "default": 15,
+            "min": 5,
+            "max": 60,
+            "step": 5,
+            "round": true,
+            "subtitle": "Seconds."
+          }
+        },
+        {
+          "title": "Skip Forward",
+          "id": "skipForwardSeconds",
+          "ai": {
+            "name": "skipForwardSeconds",
+            "description": "Seconds the skip forward button jumps.",
+            "visible": "playerStyle == 'custom' && showSkip == true"
+          },
+          "responsive": false,
+          "visible": "playerStyle == 'custom' && showSkip == true",
+          "number": {
+            "default": 30,
+            "min": 5,
+            "max": 60,
+            "step": 5,
+            "round": true,
+            "subtitle": "Seconds."
+          }
+        },
+        {
+          "title": "Playback Speed",
+          "id": "showSpeed",
+          "ai": {
+            "name": "showSpeed",
+            "description": "Whether a playback speed button is shown.",
+            "visible": "playerStyle == 'custom'"
+          },
+          "responsive": false,
+          "visible": "playerStyle == 'custom'",
+          "switch": {
+            "default": true
+          }
+        },
+        {
+          "title": "Download Button",
+          "id": "showDownload",
+          "ai": {
+            "name": "showDownload",
+            "description": "Whether a download button is shown next to the player.",
+            "visible": "playerStyle != 'none'"
+          },
+          "responsive": false,
+          "visible": "playerStyle != 'none'",
+          "switch": {
+            "default": false
+          }
+        },
+        {
+          "title": "Preload",
+          "id": "preload",
+          "ai": {
+            "name": "preload",
+            "description": "How much audio the browser fetches before play. None waits until play is pressed and is kindest on mobile data.",
+            "visible": "playerStyle != 'none'"
+          },
+          "responsive": false,
+          "visible": "playerStyle != 'none'",
+          "info": "Metadata lets the player show the true duration before playing, at the cost of one extra request per item.",
+          "select": {
+            "default": "none",
+            "items": [
+              {
+                "value": "none",
+                "title": "None (fastest)"
+              },
+              {
+                "value": "metadata",
+                "title": "Metadata (shows duration)"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "title": "Borders",
+      "icon": "square.dashed",
+      "properties": [
+        {
+          "title": "Enable",
+          "id": "showCardBorder",
+          "responsive": false,
+          "info": "Draws a border around every card. Turn off for a flat, borderless look - the corner radius below still applies to the card background and artwork.",
+          "ai": {
+            "name": "showCardBorder",
+            "description": "Whether each card draws a border."
+          },
+          "switch": {
+            "default": true
+          }
+        },
+        {
+          "title": "Style",
+          "id": "cardBorderStyle",
+          "ai": {
+            "name": "cardBorderStyle",
+            "description": "Card border line style: solid, dashed or dotted.",
+            "visible": "showCardBorder == true"
+          },
+          "responsive": false,
+          "select": {
+            "default": "border-solid",
+            "items": [
+              {
+                "value": "border-solid",
+                "title": "Solid"
+              },
+              {
+                "value": "border-dashed",
+                "title": "Dashed"
+              },
+              {
+                "value": "border-dotted",
+                "title": "Dotted"
+              }
+            ]
+          },
+          "visible": "showCardBorder == true"
+        },
+        {
+          "title": "Colour",
+          "id": "cardBorderColor",
+          "ai": {
+            "name": "cardBorderColor",
+            "description": "Card border colour. Only used when the preset is set to Custom.",
+            "visible": "showCardBorder == true && preset == 'custom'"
+          },
+          "format": "border-{{value}}",
+          "themeColor": {
+            "default": {
+              "name": "surface",
+              "brightness": 200,
+              "darkName": "surface",
+              "darkBrightness": 700
+            }
+          },
+          "visible": "showCardBorder == true && preset == 'custom'"
+        },
+        {
+          "title": "Colour on Hover",
+          "id": "cardBorderHover",
+          "ai": {
+            "name": "cardBorderHover",
+            "description": "Card border colour on hover. Only used when the preset is set to Custom and the hover effect highlights the border.",
+            "visible": "showCardBorder == true && preset == 'custom' && hoverEffect == 'border'"
+          },
+          "format": "hover:border-{{value}}",
+          "visible": "showCardBorder == true && preset == 'custom' && hoverEffect == 'border'",
+          "themeColor": {
+            "default": {
+              "name": "brand",
+              "brightness": 500,
+              "darkName": "brand",
+              "darkBrightness": 400
+            }
+          }
+        },
+        {
+          "title": "Width",
+          "id": "cardBorderWidth",
+          "ai": {
+            "name": "cardBorderWidth",
+            "description": "Card border thickness, per side.",
+            "visible": "showCardBorder == true"
+          },
+          "themeBorderWidth": {
+            "default": {
+              "base": {
+                "top": "1",
+                "right": "1",
+                "bottom": "1",
+                "left": "1",
+                "linkHorizontal": true,
+                "linkVertical": true
+              }
+            }
+          },
+          "visible": "showCardBorder == true"
+        },
+        {
+          "title": "Corners",
+          "heading": {}
+        },
+        {
+          "title": "Radius",
+          "id": "cardRadius",
+          "ai": {
+            "name": "cardRadius",
+            "description": "Card corner rounding."
+          },
+          "themeBorderRadius": {
+            "default": {
+              "base": {
+                "topLeft": "3xl",
+                "topRight": "3xl",
+                "bottomLeft": "3xl",
+                "bottomRight": "3xl"
+              }
+            }
+          },
+          "info": "Rounds the card corners. Applies whether or not the border is enabled, since it also clips the card background."
+        }
+      ]
+    },
+    {
+      "title": "Links & SEO",
+      "icon": "link",
+      "properties": [
+        {
+          "title": "Item Links",
+          "id": "linkTarget",
+          "ai": {
+            "name": "linkTarget",
+            "description": "Where an item title links to: the same tab, a new tab, or nowhere at all."
+          },
+          "responsive": false,
+          "info": "Where the title and artwork link to.",
+          "segmented": {
+            "default": "new",
+            "items": [
+              {
+                "value": "same",
+                "title": "Same tab"
+              },
+              {
+                "value": "new",
+                "title": "New tab"
+              },
+              {
+                "value": "none",
+                "title": "No link"
+              }
+            ]
+          }
+        },
+        {
+          "title": "Show Read More Link",
+          "id": "showReadMore",
+          "ai": {
+            "name": "showReadMore",
+            "description": "Whether a Read more link is shown under each item.",
+            "visible": "linkTarget != 'none'"
+          },
+          "responsive": false,
+          "visible": "linkTarget != 'none'",
+          "switch": {
+            "default": false
+          }
+        },
+        {
+          "title": "Read More Text",
+          "id": "readMoreText",
+          "ai": {
+            "name": "readMoreText",
+            "description": "Text of the Read more link.",
+            "visible": "linkTarget != 'none' && showReadMore == true"
+          },
+          "responsive": false,
+          "visible": "linkTarget != 'none' && showReadMore == true",
+          "text": {
+            "default": "Read more"
+          }
+        },
+        {
+          "title": "Structured Data",
+          "id": "enableJsonLd",
+          "responsive": false,
+          "info": "Adds PodcastEpisode, VideoObject or BlogPosting JSON-LD for each item so search engines can read them.",
+          "ai": {
+            "name": "structuredData",
+            "description": "Emit schema.org JSON-LD for each feed item."
+          },
+          "switch": {
+            "default": true
+          }
+        },
+        {
+          "title": "Feed Discovery Link",
+          "id": "emitFeedLink",
+          "ai": {
+            "name": "emitFeedLink",
+            "description": "Whether a feed discovery link is added to the page head so readers and browsers can find the feed."
+          },
+          "responsive": false,
+          "info": "Adds a rel=alternate link in the page head so browsers and readers can discover the feed.",
+          "switch": {
+            "default": false
+          }
+        },
+        {
+          "title": "Credit Link",
+          "id": "showCredit",
+          "ai": {
+            "name": "showCredit",
+            "description": "Whether a small Powered by Antenna credit is shown under the items."
+          },
+          "responsive": false,
+          "info": "Shows a small 'Powered by Antenna' line under the items. Entirely optional — thank you if you leave it on.",
+          "switch": {
+            "default": false
+          }
+        }
+      ]
+    },
+    {
+      "title": "Advanced",
+      "icon": "gearshape",
+      "properties": [
+        {
+          "title": "CSS Classes",
+          "id": "cssClasses",
+          "ai": {
+            "name": "cssClasses",
+            "description": "Extra CSS classes added to the component's outer element."
+          },
+          "responsive": false,
+          "info": "Extra Tailwind utility classes added to the component's outer element.",
+          "textArea": {
+            "default": "",
+            "size": 2
+          }
+        },
+        {
+          "title": "Card CSS Classes",
+          "id": "cardCssClasses",
+          "ai": {
+            "name": "cardCssClasses",
+            "description": "Extra CSS classes added to every card."
+          },
+          "responsive": false,
+          "info": "Extra Tailwind utility classes added to every card.",
+          "textArea": {
+            "default": "",
+            "size": 2
+          }
+        },
+        {
+          "title": "ID",
+          "id": "customId",
+          "ai": {
+            "name": "customId",
+            "description": "HTML id for the component's outer element, which also registers it as a link anchor."
+          },
+          "responsive": false,
+          "info": "Custom HTML id for the component's outer element, for anchor links and custom CSS.",
+          "input": {
+            "default": ""
+          }
+        }
+      ]
+    }
+  ]
+}
