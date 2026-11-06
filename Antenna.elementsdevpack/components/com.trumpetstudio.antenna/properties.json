@@ -2065,7 +2065,7 @@
     {
       "title": "Player",
       "icon": "play.circle",
-      "visible": "feedType != 'articles'",
+      "visible": "feedType != 'articles' && feedType != 'video'",
       "properties": [
         {
           "title": "Player",

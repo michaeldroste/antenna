@@ -85,7 +85,7 @@
   <div class="@if(layoutIsGrid)grid {{columns}}@else flex flex-col@endif {{gridGapClass}}">
     @each(item in placeholders)
     <article class="antenna-card group relative overflow-hidden {{cardPadding}} {{cardRadius}} @if(showCardBorder){{cardBorderWidth}} {{cardBorderStyle}}@else border-0@endif {{cardShadow}} {{textAlign}} @if(presetIsCustom){{cardBg}} {{cardBorderColor}}@else{{presetCard}}@endif">
-      <div class="@if(layoutIsList)flex items-start@else flex flex-col@endif {{cardGapClass}}">
+      <div class="@if(layoutIsList)@if(imageOnRight)flex flex-row-reverse items-start@else flex items-start@endif@else flex flex-col@endif {{cardGapClass}}">
         @if(placeholderShowsImage)
         <div class="antenna-art relative overflow-hidden @if(layoutIsList){{listImageWidthClass}} shrink-0@else{{imageWidth}} mx-auto@endif {{imageAspect}} {{imageRadius}} {{imageShadow}} flex items-center justify-center bg-surface-200 text-surface-400 dark:bg-surface-800">
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.2" stroke="currentColor" class="h-8 w-8">
@@ -407,7 +407,7 @@ $isRemote = function ($url) {
 
 /* ---------- fetch with file cache, stale-on-error ---------- */
 
-$fetchFeed = function ($url, $ttlMinutes) use (&$antennaWarnings, &$antennaCacheDir) {
+$fetchFeed = function ($url, $ttlMinutes, $isUsable) use (&$antennaWarnings, &$antennaCacheDir) {
     /* The system temp dir is often shared between accounts on cheap hosting, and
        a bare md5(url) filename would be guessable by a co-tenant. Namespacing the
        directory and salting the filename with a per-installation value keeps one
@@ -427,9 +427,11 @@ $fetchFeed = function ($url, $ttlMinutes) use (&$antennaWarnings, &$antennaCache
        future that would then be served for good. A folder this code made is
        0700, so one that other accounts can write to was not made here and is
        not used: the feed is then fetched on every view instead. Tested only
-       where fileperms() is allowed, since on PHP 8 a disabled function throws. */
+       where fileperms() is allowed, since on PHP 8 a disabled function throws,
+       and never on Windows, where PHP reports every folder as 0777 and the cache
+       would never be used at all. */
     $perms = (is_dir($dir) && function_exists('fileperms')) ? @fileperms($dir) : false;
-    $openToOthers = $perms !== false && ($perms & 0022) !== 0;
+    $openToOthers = DIRECTORY_SEPARATOR === '/' && $perms !== false && ($perms & 0022) !== 0;
     $cacheUsable = is_dir($dir) && is_writable($dir) && !$openToOthers;
     if ($openToOthers) {
         $antennaWarnings[] = 'The cache folder can be written by other accounts on this server, so it is not used.';
@@ -484,12 +486,16 @@ $fetchFeed = function ($url, $ttlMinutes) use (&$antennaWarnings, &$antennaCache
        the rest serve the stale copy immediately, which is the same thing the
        fetch-failure path below already does. */
     $lock = null;
-    if ($cacheUsable) {
+    /* The third argument tells a lock another request holds from a filesystem
+       that cannot lock at all. Read as the first, the second served the stale
+       copy for good once there was one, and never refreshed it. */
+    if ($cacheUsable && function_exists('flock')) {
         $lock = @fopen($file . '.lock', 'c');
-        if ($lock && !@flock($lock, LOCK_EX | LOCK_NB)) {
+        $lockBusy = 0;
+        if ($lock && !@flock($lock, LOCK_EX | LOCK_NB, $lockBusy)) {
             @fclose($lock);
             $lock = null;
-            if (is_file($file)) {
+            if ($lockBusy && is_file($file)) {
                 $antennaWarnings[] = 'Refresh already running elsewhere - serving the last good copy.';
                 return (string) file_get_contents($file);
             }
@@ -638,6 +644,16 @@ $fetchFeed = function ($url, $ttlMinutes) use (&$antennaWarnings, &$antennaCache
         $body = null;
     }
 
+    /* That test reads only the opening of the body, so a PHP notice printed ahead
+       of the XML, a feed cut off by a fatal error partway through, or a JSON error
+       message all passed it, and each then replaced the last good copy. So the
+       body is parsed once before it is kept. A feed that parses and holds no items
+       is still kept: the author may have emptied it on purpose. */
+    if ($body !== null && trim($body) !== '' && !$isUsable($body)) {
+        $antennaWarnings[] = 'The feed address answered with something that could not be read as a feed, so it was not used.';
+        $body = null;
+    }
+
     if ($body !== null && trim($body) !== '') {
         /* Write-then-rename: two concurrent misses writing the same file directly
            interleave, and a reader picking up the half-written result caches a
@@ -686,13 +702,19 @@ $cleanRaw = function ($raw) {
        BOM, in whichever order the two arrive. */
     $raw = ltrim(preg_replace('/^\xEF\xBB\xBF/', '', ltrim($raw)));
     $charset = 'UTF-8';
-    if (preg_match('/<\?xml[^>]*encoding=["\']([^"\']+)["\']/i', substr($raw, 0, 200), $m)) {
+    /* The whole declaration, however long. Read only as far as byte 200, padding
+       could put the encoding past the check while libxml still honoured it, and a
+       feed written in UTF-7 then slipped its declarations past the test in
+       $parseFeed. */
+    $declEnd = strpos($raw, '?>');
+    $decl = (substr($raw, 0, 5) === '<?xml' && $declEnd !== false) ? substr($raw, 0, $declEnd) : '';
+    if (preg_match('/\bencoding\s*=\s*["\']([^"\']+)["\']/i', $decl, $m)) {
         $charset = strtoupper(trim($m[1]));
     }
     if ($charset !== 'UTF-8' && $charset !== 'UTF8' && function_exists('iconv')) {
         $converted = @iconv($charset, 'UTF-8//IGNORE', $raw);
         if ($converted !== false && $converted !== '') {
-            $raw = preg_replace('/(<\?xml[^>]*encoding=["\'])[^"\']+(["\'])/i', '${1}UTF-8${2}', $converted, 1);
+            $raw = preg_replace('/(<\?xml[^>]*encoding\s*=\s*["\'])[^"\']+(["\'])/i', '${1}UTF-8${2}', $converted, 1);
         }
     }
     /* A feed that says UTF-8 but carries one stray Windows-1252 byte - a curly
@@ -825,9 +847,43 @@ $squash = function ($s) {
     return trim($r === null ? $s : $r);
 };
 
-$toText = function ($html) use ($squash) {
-    $t = preg_replace('#<(script|style)\b[^>]*>.*?</\1>#is', ' ', (string) $html);
-    $t = preg_replace('#<br\s*/?>|</p>|</div>|</li>#i', ' ', $t);
+/* Script and style blocks, removed by walking the text once. A regular expression
+   here took quadratic time on an opener repeated with no closer: 27 seconds for
+   one 1 MB description, measured under PCRE's JIT, with no backtrack limit to stop
+   it, so ten of those in a feed outlasted any max_execution_time on every view.
+   It also returned nothing at all for a block over a megabyte. Searching a copy
+   made lower-case once, rather than with stripos, keeps this linear on the older
+   PHP versions where stripos copies its whole subject on every call. Once no
+   closer lies ahead the search stops, as nothing further could be removed. */
+$dropBlocks = function ($html) {
+    foreach (array('script', 'style') as $tag) {
+        $low = strtolower($html);
+        $open = '<' . $tag;
+        $close = '</' . $tag . '>';
+        $out = '';
+        $from = 0;
+        $at = 0;
+        while (($o = strpos($low, $open, $at)) !== false) {
+            $after = $o + strlen($open);
+            /* The tag itself only: <scripted> is not a script. */
+            if (isset($low[$after]) && preg_match('/\w/', $low[$after]) === 1) { $at = $after; continue; }
+            $gt = strpos($low, '>', $after);
+            $end = ($gt === false) ? false : strpos($low, $close, $gt + 1);
+            if ($end === false) { break; }
+            $out .= substr($html, $from, $o - $from) . ' ';
+            $from = $end + strlen($close);
+            $at = $from;
+        }
+        $html = $out . substr($html, $from);
+    }
+    return $html;
+};
+
+$toText = function ($html) use ($squash, $dropBlocks) {
+    $t = $dropBlocks((string) $html);
+    /* A closing tag that ends a block leaves a space, or "Show notes" and the
+       paragraph after it run together as "Show notesIn this episode". */
+    $t = preg_replace('#<br\s*/?>|</p>|</div>|</li>|</h[1-6]>|</td>|</th>|</tr>|</blockquote>#i', ' ', $t);
     $t = strip_tags($t);
     $t = html_entity_decode($t, ENT_QUOTES | ENT_HTML5, 'UTF-8');
     return $squash($t);
@@ -892,7 +948,9 @@ $parseFeed = function ($raw) use ($NS, $toSeconds, $toText, $firstImageIn, $A, $
     /* ---- JSON Feed 1.x ---- */
     if ($trimmed !== '' && $trimmed[0] === '{') {
         $json = json_decode($trimmed, true);
-        if (!is_array($json) || empty($json['items']) || !is_array($json['items'])) {
+        /* An empty list is still a feed, as an empty RSS channel is. No list at all
+           is what a JSON error message looks like. */
+        if (!is_array($json) || !isset($json['items']) || !is_array($json['items'])) {
             $antennaWarnings[] = 'Looks like JSON but has no items array.';
             return $result;
         }
@@ -978,10 +1036,44 @@ $parseFeed = function ($raw) use ($NS, $toSeconds, $toText, $firstImageIn, $A, $
        uses it a few thousand times - 80 KB on the wire - became 400 MB in
        memory at the first title read, a memory-limit fatal that took the rest
        of the page with it on every request. No real feed declares entities of
-       its own. They can only be declared before the root element, which is the
-       first tag that is not a declaration, comment or processing instruction. */
-    $rootAt = preg_match('/<[^!?]/', $raw, $rm, PREG_OFFSET_CAPTURE) ? $rm[0][1] : strlen($raw);
-    if (stripos(substr($raw, 0, $rootAt), '<!ENTITY') !== false) {
+       its own. They can only be declared inside a DOCTYPE's internal subset, so
+       the prolog is walked to find one: comments and processing instructions
+       are stepped over whole, because either can hold text that looks like the
+       root element, and the DOCTYPE's own quoted literals likewise. The test
+       after the parse below is the one that cannot be fooled by an encoding;
+       this one covers a host without the dom extension. */
+    $entitiesDeclared = function ($text) {
+        $i = 0;
+        $n = strlen($text);
+        while ($i < $n) {
+            $i += strspn($text, " \t\r\n", $i);
+            if (substr($text, $i, 4) === '<!--') {
+                $e = strpos($text, '-->', $i + 4);
+                if ($e === false) { return false; }
+                $i = $e + 3;
+            } elseif (substr($text, $i, 2) === '<?') {
+                $e = strpos($text, '?>', $i + 2);
+                if ($e === false) { return false; }
+                $i = $e + 2;
+            } else {
+                break;
+            }
+        }
+        if (strtoupper(substr($text, $i, 9)) !== '<!DOCTYPE') { return false; }
+        $j = $i + 9;
+        while ($j < $n) {
+            $j += strcspn($text, "\"'>[", $j);
+            if ($j >= $n) { return false; }
+            $c = $text[$j];
+            if ($c === '>') { return false; }
+            if ($c === '[') { return stripos($text, '<!ENTITY', $j) !== false; }
+            $e = strpos($text, $c, $j + 1);
+            if ($e === false) { return false; }
+            $j = $e + 1;
+        }
+        return false;
+    };
+    if ($entitiesDeclared($raw)) {
         $antennaWarnings[] = 'The feed declares entities of its own, which no real feed needs, so it was not read.';
         return $result;
     }
@@ -999,12 +1091,28 @@ $parseFeed = function ($raw) use ($NS, $toSeconds, $toText, $firstImageIn, $A, $
             if ($m[0][0] === '<') { return $m[0]; }
             if (!isset($m[1]) || $m[1] === '') { return '&amp;'; }
             $ref = $m[1];
-            if ($ref[0] === '#' || in_array($ref, array('amp;', 'lt;', 'gt;', 'quot;', 'apos;'), true)) { return '&' . $ref; }
+            /* A numeric reference to a character XML does not allow, such as
+               &#11;, is as fatal as a bad name, and one of them lost every item
+               in the feed. A legal one stays, an illegal one goes. */
+            if ($ref[0] === '#') {
+                $cp = -1;
+                if (preg_match('/\A#[xX]([0-9a-fA-F]{1,8});\z/', $ref, $hex) === 1) {
+                    $cp = hexdec($hex[1]);
+                } elseif (preg_match('/\A#([0-9]{1,10});\z/', $ref, $dec) === 1) {
+                    $cp = (int) $dec[1];
+                }
+                $legal = $cp === 0x9 || $cp === 0xA || $cp === 0xD || ($cp >= 0x20 && $cp <= 0xD7FF)
+                    || ($cp >= 0xE000 && $cp <= 0xFFFD) || ($cp >= 0x10000 && $cp <= 0x10FFFF);
+                return $legal ? '&' . $ref : '';
+            }
+            if (in_array($ref, array('amp;', 'lt;', 'gt;', 'quot;', 'apos;'), true)) { return '&' . $ref; }
             $named = html_entity_decode('&' . $ref, ENT_QUOTES | ENT_HTML5, 'UTF-8');
             if ($named === '&' . $ref) { return '&amp;' . $ref; }
             return htmlspecialchars($named, ENT_NOQUOTES, 'UTF-8');
         }, $raw);
         if (is_string($repaired)) {
+            /* U+FFFE and U+FFFF are not XML characters either, written out raw. */
+            $repaired = str_replace(array("\xEF\xBF\xBE", "\xEF\xBF\xBF"), '', $repaired);
             $xml = simplexml_load_string($repaired, 'SimpleXMLElement', $flags);
             if ($xml !== false) { $antennaWarnings[] = 'Feed had unescaped ampersands or HTML entities; repaired before parsing.'; }
         }
@@ -1016,6 +1124,18 @@ $parseFeed = function ($raw) use ($NS, $toSeconds, $toText, $firstImageIn, $A, $
     if ($xml === false) {
         $antennaWarnings[] = 'The feed is not valid XML or JSON and could not be repaired.';
         return $result;
+    }
+
+    /* Asked of the parsed document, so no spelling or encoding of the declaration
+       can get past it. Nothing has been read as a string yet, so nothing has been
+       expanded. */
+    if (function_exists('dom_import_simplexml')) {
+        $domRoot = @dom_import_simplexml($xml);
+        $domType = ($domRoot && $domRoot->ownerDocument) ? $domRoot->ownerDocument->doctype : null;
+        if ($domType && $domType->entities && $domType->entities->length > 0) {
+            $antennaWarnings[] = 'The feed declares entities of its own, which no real feed needs, so it was not read.';
+            return $result;
+        }
     }
 
     $rootName = strtolower($xml->getName());
@@ -1057,6 +1177,14 @@ $parseFeed = function ($raw) use ($NS, $toSeconds, $toText, $firstImageIn, $A, $
 
     $isAtom = ($result['format'] === 'Atom');
 
+    /* Atom can say its text is XHTML, wrapped in a div, and a plain string cast
+       reads only the text sitting directly in the element: none at all. */
+    $atomBody = function ($el) {
+        if (strtolower((string) $el['type']) !== 'xhtml') { return (string) $el; }
+        $x = $el->asXML();
+        return is_string($x) ? $x : '';
+    };
+
     foreach ($rawItems as $node) {
         $it = $node->children($NS['itunes']);
         $md = $node->children($NS['media']);
@@ -1064,7 +1192,15 @@ $parseFeed = function ($raw) use ($NS, $toSeconds, $toText, $firstImageIn, $A, $
         $cn = $node->children($NS['content']);
         $yt = $node->children($NS['yt']);
 
-        $title = trim((string) $node->title);
+        /* A title is meant to be plain text, and Atom's type="html" or a CDATA
+           section can still hold markup: "Tom &amp; Jerry" showed exactly that on
+           the page, because the output is escaped again. So tags go where the
+           feed says it is HTML, and any entity left over is decoded once. */
+        $titleType = ($isAtom && isset($node->title)) ? strtolower((string) $node->title['type']) : '';
+        $title = ($titleType === 'xhtml') ? $atomBody($node->title) : (string) $node->title;
+        if ($titleType === 'html' || $titleType === 'xhtml') { $title = strip_tags($title); }
+        if (strpos($title, '&') !== false) { $title = html_entity_decode($title, ENT_QUOTES | ENT_HTML5, 'UTF-8'); }
+        $title = trim($title);
 
         /* link */
         $url = '';
@@ -1097,26 +1233,30 @@ $parseFeed = function ($raw) use ($NS, $toSeconds, $toText, $firstImageIn, $A, $
         /* content */
         $contentHtml = '';
         if (isset($cn->encoded)) { $contentHtml = (string) $cn->encoded; }
-        elseif ($isAtom && isset($node->content)) { $contentHtml = (string) $node->content; }
+        elseif ($isAtom && isset($node->content)) { $contentHtml = $atomBody($node->content); }
 
         $summary = '';
         if (isset($it->summary) && trim((string) $it->summary) !== '') { $summary = (string) $it->summary; }
         elseif (isset($node->description)) { $summary = (string) $node->description; }
-        elseif ($isAtom && isset($node->summary)) { $summary = (string) $node->summary; }
+        elseif ($isAtom && isset($node->summary)) { $summary = $atomBody($node->summary); }
         elseif (isset($md->description)) { $summary = (string) $md->description; }
+        /* YouTube keeps every entry's description here, beside the thumbnail read
+           further down, so its cards never had one. */
+        elseif (isset($md->group) && isset($md->group->description)) { $summary = (string) $md->group->description; }
         if ($summary === '') { $summary = $contentHtml; }
 
         /* audio enclosure — tracking prefixes are preserved deliberately */
         $audioUrl = ''; $audioType = ''; $audioBytes = 0;
         if (isset($node->enclosure)) {
             foreach ($node->enclosure as $enc) {
-                $t = (string) $enc['type'];
+                $t = strtolower((string) $enc['type']);
                 $eu = (string) $enc['url'];
-                /* A typeless enclosure is only assumed to be audio when the URL
-                   looks like it: accepting every typeless enclosure handed the
+                /* An enclosure with no type, or a catch-all such as
+                   application/octet-stream, is assumed to be audio only when the
+                   URL looks like it: accepting every typeless enclosure handed the
                    player an image URL on feeds that omit the attribute. */
                 $looksAudio = (bool) preg_match('/\.(mp3|m4a|aac|ogg|oga|opus|wav|flac|m4b)(\?|#|$)/i', $eu);
-                if (strpos($t, 'audio/') === 0 || ($t === '' && $looksAudio)) {
+                if (strpos($t, 'audio/') === 0 || ($looksAudio && strpos($t, 'video/') !== 0 && strpos($t, 'image/') !== 0)) {
                     $audioUrl = $eu;
                     $audioType = $t !== '' ? $t : 'audio/mpeg';
                     $audioBytes = (int) $enc['length'];
@@ -1239,7 +1379,20 @@ if ($feedUrl === '') {
        on PHP 8 calling one throws. That must cost this component, not the rest
        of the page, so it is caught the same way parsing is below. */
     try {
-        $raw = $fetchFeed($feedUrl, (int) $A['cacheTtl']);
+        /* What the fetch asks before it keeps a body. Warnings from a parse that
+           succeeded are dropped, because the real parse below makes them again; a
+           failure's are kept, because they say why. */
+        $raw = $fetchFeed($feedUrl, (int) $A['cacheTtl'], function ($body) use ($parseFeed, $cleanRaw, &$antennaWarnings) {
+            $kept = $antennaWarnings;
+            try {
+                $probe = $parseFeed($cleanRaw($body));
+            } catch (\Throwable $e) {
+                return false;
+            }
+            if ($probe['format'] === 'unknown') { return false; }
+            $antennaWarnings = $kept;
+            return true;
+        });
     } catch (\Throwable $e) {
         $raw = null;
         $antennaWarnings[] = 'Fetching the feed failed (' . get_class($e) . ').';
@@ -1462,7 +1615,14 @@ $renderCard = function ($item, $channelImage) use ($A, $esc, $cls, $fmtDate, $fm
     $h .= '<div class="' . $rowClasses . '">';
 
     if ($imgHtml !== '') {
-        $h .= $hasLink ? '<a href="' . $esc($link) . '"' . $target . ' class="block shrink-0" tabindex="-1" aria-hidden="true">' . $imgHtml . '</a>' : $imgHtml;
+        /* Hidden from the keyboard and from screen readers only because the title
+           beside it links to the same place. With no title drawn, this is the
+           card's one link, and hiding it left nothing to reach. */
+        $titleLinks = $A['showTitle'] && $item['title'] !== '';
+        $h .= $hasLink
+            ? '<a href="' . $esc($link) . '"' . $target . ' class="block shrink-0"'
+                . ($titleLinks ? ' tabindex="-1" aria-hidden="true"' : '') . '>' . $imgHtml . '</a>'
+            : $imgHtml;
     }
 
     $h .= '<div class="min-w-0 flex-1">';

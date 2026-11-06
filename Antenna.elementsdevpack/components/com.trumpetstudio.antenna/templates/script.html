@@ -5,8 +5,15 @@
  * Antenna player — MIT License.
  * Vanilla, idempotent, and safe to include more than once per page.
  */
-window.antennaPlayer = window.antennaPlayer || (function () {
+/* Asked for what it is, not merely whether it exists: an element with this id on
+   the page is also window.antennaPlayer, which would have kept the engine from
+   starting and left every player dead without an error. */
+window.antennaPlayer = (window.antennaPlayer && typeof window.antennaPlayer.initAll === 'function') ? window.antennaPlayer : (function () {
     var SPEEDS = [1, 1.25, 1.5, 1.75, 2, 0.75];
+    /* Which players are wired, held here because a data attribute travels with a
+       copy: a card cloned by a lightbox or a slider arrived marked as ready, with
+       none of its listeners, and nothing could revive it. */
+    var wired = new WeakSet();
 
     /* One registry for every audio component on the page rather than one per
        pack. Antenna, the CMS Audio Player and WindyTown each kept a private list,
@@ -47,7 +54,8 @@ window.antennaPlayer = window.antennaPlayer || (function () {
     }
 
     function init(root) {
-        if (root.dataset.antennaReady === '1') { return; }
+        if (wired.has(root)) { return; }
+        wired.add(root);
         root.dataset.antennaReady = '1';
 
         var audio = root.querySelector('.antenna-audio');
@@ -66,9 +74,43 @@ window.antennaPlayer = window.antennaPlayer || (function () {
         var backBy = parseInt(root.dataset.skipBack, 10) || 15;
         var fwdBy = parseInt(root.dataset.skipForward, 10) || 30;
         var speedIndex = 0;
-        /* Set once the source fails to load, and never cleared: the button is
-           disabled for good from then on. */
+        /* Set when a source fails before it ever delivered anything, and never
+           cleared: the button is disabled for good from then on. */
         var dead = false;
+        /* A source that has delivered its metadata is not a dead one, so a failure
+           after that is the network: a tunnel, a host that answered 503 for one
+           range. It used to latch exactly like a missing file, and the listener
+           had to reload the page and lost their place. Now the next Play reloads
+           and goes back to where it stopped. */
+        var everLoaded = false;
+        var needsReload = false;
+        var resumeAt = 0;
+        var statusEl = null;
+
+        /* Audio unavailable was only ever a label on a button that had just lost
+           focus, so nobody could see it and a screen reader might not say it. The
+           element exists before its text does, or many screen readers stay silent. */
+        function say(text, takeFocus) {
+            if (!statusEl) {
+                statusEl = document.createElement('p');
+                statusEl.className = timeEl ? timeEl.className.replace('antenna-time', 'antenna-status') : 'antenna-status';
+                statusEl.setAttribute('role', 'status');
+                statusEl.tabIndex = -1;
+                statusEl.style.width = '100%';
+                statusEl.style.margin = '0';
+                statusEl.style.fontSize = '0.75rem';
+                root.appendChild(statusEl);
+            }
+            window.setTimeout(function () {
+                if (!statusEl) { return; }
+                statusEl.textContent = text;
+                if (takeFocus) { statusEl.focus(); }
+            }, 60);
+        }
+        function unsay() {
+            if (statusEl && statusEl.parentNode) { statusEl.parentNode.removeChild(statusEl); }
+            statusEl = null;
+        }
 
         busAdd(audio);
 
@@ -99,13 +141,15 @@ window.antennaPlayer = window.antennaPlayer || (function () {
 
         function play() {
             busPauseOthers(audio);
+            /* Only load() clears a failure; play() alone would do nothing. */
+            if (needsReload) { needsReload = false; audio.load(); }
             var p = audio.play();
-            if (p && typeof p.catch === 'function') { p.catch(function () { /* autoplay blocked */ }); }
+            if (p && typeof p.catch === 'function') { p.catch(function () { setIcons(false); }); }
         }
 
         if (toggle) {
             toggle.addEventListener('click', function () {
-                if (audio.paused) { play(); } else { audio.pause(); }
+                if (audio.paused || needsReload) { play(); } else { audio.pause(); }
             });
         }
 
@@ -119,7 +163,7 @@ window.antennaPlayer = window.antennaPlayer || (function () {
         function goTo(t) {
             /* A source that failed has nothing to seek in: the time label
                went on counting skips ("0:20 / 0:00") under a disabled button. */
-            if (dead) { return; }
+            if (dead || needsReload) { return; }
             var s = audio.seekable;
             if (t > 0 && s && s.length && s.end(s.length - 1) === 0) { return; }
             if (audio.duration === Infinity) {
@@ -137,9 +181,12 @@ window.antennaPlayer = window.antennaPlayer || (function () {
         }
 
         if (fwd) {
+            /* duration > 0, so it waits for the metadata, as the other three players
+               do: before it the time moved with no label to show for it, and a
+               jump past the end made the next Play stop at once. A live stream's
+               Infinity passes, and goTo holds that to what has arrived. */
             fwd.addEventListener('click', function () {
-                var d = isFinite(audio.duration) ? audio.duration : audio.currentTime + fwdBy;
-                goTo(Math.min(d, audio.currentTime + fwdBy));
+                if (audio.duration > 0) { goTo(Math.min(audio.duration, audio.currentTime + fwdBy)); }
             });
         }
 
@@ -161,7 +208,7 @@ window.antennaPlayer = window.antennaPlayer || (function () {
             var scrubbing = false;
 
             function seekTo(clientX) {
-                if (dead) { return; }
+                if (dead || needsReload) { return; }
                 var rect = track.getBoundingClientRect();
                 if (!rect.width) { return; }
                 var pct = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
@@ -191,6 +238,9 @@ window.antennaPlayer = window.antennaPlayer || (function () {
             }
 
             track.addEventListener('pointerdown', function (e) {
+                /* The primary button only. A right-click or a control-click is
+                   asking for a menu, and it moved the track as well. */
+                if (e.button !== 0 || e.ctrlKey) { return; }
                 scrubbing = true;
                 /* Feature-tested and wrapped: setPointerCapture throws
                    NotFoundError for a pointer id that is no longer active, which
@@ -201,7 +251,10 @@ window.antennaPlayer = window.antennaPlayer || (function () {
                 seekTo(e.clientX);
             });
             track.addEventListener('pointermove', function (e) {
-                if (scrubbing) { seekTo(e.clientX); }
+                if (!scrubbing) { return; }
+                /* No button held means the release went somewhere this never saw. */
+                if (!e.buttons) { scrubbing = false; return; }
+                seekTo(e.clientX);
             });
             track.addEventListener('pointerup', function () { scrubbing = false; });
             track.addEventListener('pointercancel', function () { scrubbing = false; });
@@ -225,7 +278,10 @@ window.antennaPlayer = window.antennaPlayer || (function () {
                     if (isFinite(audio.duration) && audio.duration > 0) { goTo(audio.duration); }
                 } else if (e.key === ' ' || e.key === 'Enter') {
                     e.preventDefault();
-                    if (audio.paused) { play(); } else { audio.pause(); }
+                    /* A dead bar has nothing to play, and play() would pause
+                       whatever else is playing on the page first. */
+                    if (dead) { return; }
+                    if (audio.paused || needsReload) { play(); } else { audio.pause(); }
                 }
             });
         }
@@ -238,9 +294,27 @@ window.antennaPlayer = window.antennaPlayer || (function () {
             update();
         });
         audio.addEventListener('timeupdate', update);
-        audio.addEventListener('loadedmetadata', update);
+        audio.addEventListener('loadedmetadata', function () {
+            everLoaded = true;
+            if (resumeAt > 0) {
+                var at = resumeAt;
+                resumeAt = 0;
+                goTo(at);
+            }
+            update();
+        });
         audio.addEventListener('durationchange', update);
+        audio.addEventListener('playing', unsay);
         audio.addEventListener('error', function () {
+            if (everLoaded) {
+                if (audio.currentTime > 0) { resumeAt = audio.currentTime; }
+                needsReload = true;
+                setIcons(false);
+                say('Audio unavailable', false);
+                return;
+            }
+            var active = document.activeElement;
+            var lostFocus = !!active && (active === toggle || active === back || active === fwd);
             dead = true;
             if (toggle) {
                 toggle.disabled = true;
@@ -250,9 +324,10 @@ window.antennaPlayer = window.antennaPlayer || (function () {
             /* The bar and the skip buttons can do nothing either, so they stop
                offering to: under "Audio unavailable" a screen reader still
                announced an operable slider and working skip buttons. */
-            if (track) { track.setAttribute('aria-disabled', 'true'); track.tabIndex = -1; }
-            if (back) back.disabled = true;
-            if (fwd) fwd.disabled = true;
+            if (track) { track.setAttribute('aria-disabled', 'true'); track.tabIndex = -1; track.classList.add('antenna-unavailable'); }
+            if (back) { back.disabled = true; back.classList.add('antenna-unavailable'); }
+            if (fwd) { fwd.disabled = true; fwd.classList.add('antenna-unavailable'); }
+            say('Audio unavailable', lostFocus);
         });
 
         update();

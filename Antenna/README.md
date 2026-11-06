@@ -192,7 +192,6 @@ fails a publish.
   so well-formed feeds are never altered
 - BOM stripped, invalid control characters removed, declared non-UTF-8 encodings
   transcoded
-- Missing `<guid>` falls back to `<link>`, then a hash of title+date
 - Missing `<link>` (common — The Verge's feed omits it) renders an unlinked title
   rather than a dead link
 - Durations accepted as `2547`, `2547.5`, `42:27`, `01:42:27`, `00:42:27.250`, `42 min`,
@@ -206,9 +205,11 @@ fails a publish.
 - File cache with configurable TTL; **on fetch failure the last good copy is served**,
   and while the feed host stays down Antenna waits five minutes (or the Refresh
   Every time, if that is shorter) between attempts instead of making each visitor
-  wait out the timeout. A host that answers with a page that is not a feed — a bot
-  challenge, a parked domain, a maintenance notice — counts as a failure too, so
-  it never replaces the last good copy
+  wait out the timeout. A host that answers with anything that cannot be read as a
+  feed — a bot challenge, a parked domain, a maintenance notice, a PHP error
+  printed ahead of the XML, a feed cut off partway — counts as a failure too, so
+  it never replaces the last good copy. A feed that reads correctly and holds no
+  items does replace it, because that may be what you meant
 - A JSON Feed value of the wrong kind — an object where a date belongs, say — is
   treated as missing, and any other error while parsing a feed shows your fallback
   rather than cutting the page off
@@ -270,15 +271,16 @@ Written before release, on purpose.
    to the start. There, the bar, the skip buttons and the arrow keys do nothing
    rather than restarting the episode, and Home still goes to the start. Nothing
    in a component can change what the feed's audio host sends.
-7. **One feed per component.** Multi-feed aggregation is the next release's
+8. **One feed per component.** Multi-feed aggregation is the next release's
    headline.
-8. **Very large feeds are fully parsed** before slicing, on every page view: the
+9. **Very large feeds are fully parsed** before slicing, on every page view: the
    cache saves the feed's download, not the parsed result. A 1000-item, 6 MB feed
    parses fine but costs a moment on each view of the page. Image extraction is
    deferred so it only runs on items that actually render.
-9. **Browser Preview shows nothing** unless your preview serves PHP. Check the
-   published page.
-10. **The download button opens a new tab rather than downloading.** Browsers only
+10. **Elements' own Preview runs the feed for real**, because it serves PHP, but a
+    preview through any other server that does not shows nothing. Check the
+    published page.
+11. **The download button opens a new tab rather than downloading.** Browsers only
     honour a real download for files served from the same site as the page, and a
     podcast enclosure lives on whoever hosts the show — so for a feed reader the
     address is essentially never your own. Rather than offer a download the
@@ -287,7 +289,7 @@ Written before release, on purpose.
     new tab and labels itself that way. A same-site enclosure still gets a real
     download. This is a browser rule, not a setting: no header on the podcast
     host's server changes it.
-11. **Hover effects do not fire on touch on a Tailwind 4 theme, and that is
+12. **Hover effects do not fire on touch on a Tailwind 4 theme, and that is
     Tailwind rather than Antenna.** Tailwind 4 compiles every `hover:` utility
     inside `@media (hover: hover)`, so Card Hover (lift, scale, shadow, border)
     and Image Hover (zoom, brightness, greyscale) do not fire on a phone or
@@ -313,6 +315,39 @@ Written before release, on purpose.
     ships a hand-written `properties.json` instead, with a small Advanced group
     (CSS classes, card CSS classes, custom ID). Adding the global groups is a
     build-tooling task, not a code change.
+
+---
+
+## Build 34 — more hostile feeds, and a player that survives a dropped connection. Nothing to change by hand.
+
+- **Two ways a hostile feed could end the page on every view are closed.** The
+  entity check from build 33 could be stepped around with a comment placed ahead
+  of the declaration, and a description repeating `<script>` with no closer took
+  the server time quadratic in its length, 27 seconds for one megabyte.
+- **A dropped connection no longer kills the player for good.** A track that had
+  started and then lost its host used to go to Audio unavailable until the page
+  was reloaded. It now says so, stays live, and Play picks up where it stopped.
+  Only a source that never loaded at all stays disabled.
+- **Audio unavailable is now written on the card**, not only spoken by a screen
+  reader, and a keyboard user's focus goes to it rather than being lost.
+- **A broken answer no longer replaces the last good copy.** See Resilience.
+- **YouTube cards show a description** when Show Description is on. They never
+  had one. Switch it off if you relied on that.
+- **A feed with one illegal character reference** such as `&#11;` is repaired
+  rather than lost, and **titles** that came through as `Tom &amp; Jerry` read
+  correctly. Atom text marked `type="xhtml"` is read.
+- **A card with no title drawn** keeps its image link reachable by keyboard and
+  screen reader. It was hidden from both, on the grounds that the title linked to
+  the same place.
+- **Enclosures marked `application/octet-stream`** with an audio file name play.
+- **Headings and table cells** no longer run into the next word in descriptions.
+- **A right-click on the seek bar** no longer seeks, and neither does a skip
+  before the file has started loading.
+- **Hosts:** on Windows the cache is used again (build 33 refused it by mistake),
+  and a filesystem that cannot lock files no longer freezes the feed.
+- **In the editor:** forcing the type to Video no longer previews a player the
+  page will not have, and hides the Player settings. List layout's Image Position
+  Right now shows on the canvas.
 
 ---
 

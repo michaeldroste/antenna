@@ -509,23 +509,18 @@ const transformHook = (rw) => {
         hasFeedUrl: feedUrl.length > 0,
         layoutIsGrid: layoutMode === "grid",
         layoutIsList: layoutMode === "list",
-        layoutIsCompact: layoutMode === "compact",
         /* No layoutIsFeatured: Featured renders one card per row through the
            same flex column as every non-grid layout, so nothing branches on it.
            The flag was set and read nowhere until build 28 dropped it. */
         imageOnRight: p.imagePosition === "right",
-        /* Is there a player of any kind? Drives the edit-canvas placeholder, which
-           has to keep drawing one for "native" too — that mode still renders a
-           player on the published page, just the browser's own. */
-        showsPlayer: playerStyle !== "none" && feedType !== "articles",
         /* Is the custom transport engine needed? "native" hands the browser its
            own <audio controls> and drives none of that script, so portalling it
-           there was ~6 KB per page attached to nothing. Kept separate from
-           showsPlayer above so the canvas preview is unaffected. The check stays a
-           hooks flag OUTSIDE the @portal (see build-devpack.sh): an instance that
-           registered an empty portal under the shared id would deduplicate a later
+           there was ~6 KB per page attached to nothing, and a forced Video or
+           Articles feed renders no player at all. The check stays a hooks flag
+           OUTSIDE the @portal (see build-devpack.sh): an instance that registered
+           an empty portal under the shared id would deduplicate a later
            instance's real one away. */
-        needsPlayerScript: playerStyle !== "none" && playerStyle !== "native" && feedType !== "articles",
+        needsPlayerScript: playerStyle !== "none" && playerStyle !== "native" && feedType !== "articles" && feedType !== "video",
         emitFeedLink: p.emitFeedLink === true && feedUrl.length > 0,
         /* A border-colour hover is meaningless on a card with no border, so the
            flag folds in showCardBorder rather than every caller re-checking it. */
@@ -538,7 +533,6 @@ const transformHook = (rw) => {
         hasTransition: hoverEffect !== "none" &&
             Object.prototype.hasOwnProperty.call(HOVER_CARD, hoverEffect),
         showsTitle,
-        showsDescription,
 
         /* The edit-canvas placeholder's own versions of three of the flags above.
            Compact drops the artwork, the description and the player on the
@@ -554,7 +548,7 @@ const transformHook = (rw) => {
            prefix and then reports the remainder as an unexpected name. */
         placeholderShowsImage: p.showImage !== false && layoutMode !== "compact",
         placeholderShowsDescription: showsDescription && layoutMode !== "compact",
-        placeholderShowsPlayer: playerStyle !== "none" && feedType !== "articles" && layoutMode !== "compact"
+        placeholderShowsPlayer: playerStyle !== "none" && feedType !== "articles" && feedType !== "video" && layoutMode !== "compact"
     };
 
     const config = {
